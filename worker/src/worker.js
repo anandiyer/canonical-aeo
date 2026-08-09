@@ -11,6 +11,7 @@
 
 import { crawlSite, normalizeInput } from "./crawl.js";
 import { runDeterministicAudit } from "./audit.js";
+import { auditContent } from "./content.js";
 import { scoreReport, rankFixes } from "./score.js";
 import { attachArtifacts } from "./fixes.js";
 import { generateQueries } from "./queries.js";
@@ -254,6 +255,20 @@ async function runPipeline(send, input, env, quota) {
   await stage("audit", "active");
   await status("Checking crawler access, schema and agent readiness…");
   const pillars = runDeterministicAudit(crawl);
+
+  // Pillar C sits in the audit stage rather than getting its own step: 16 of
+  // its 25 points are deterministic and the model half is a single call, so
+  // splitting it out would show the user a step that's over before it renders.
+  await status("Reading how the copy is written…");
+  try {
+    const content = await auditContent(crawl, env);
+    if (content?.pillar?.max > 0) pillars.push(content.pillar);
+  } catch (err) {
+    const message = String(err?.message || err);
+    console.error("content audit failed:", message);
+    await send({ type: "warn", where: "content", message });
+  }
+
   const pillarDetail = pillars.map((p) => ({
     id: p.id,
     label: p.label,

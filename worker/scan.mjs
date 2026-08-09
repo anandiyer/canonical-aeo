@@ -8,6 +8,7 @@
 
 import { crawlSite } from "./src/crawl.js";
 import { runDeterministicAudit } from "./src/audit.js";
+import { auditContent } from "./src/content.js";
 import { scoreReport, rankFixes } from "./src/score.js";
 import { attachArtifacts } from "./src/fixes.js";
 
@@ -30,6 +31,13 @@ const MARK = { pass: C.green("✔"), partial: C.yellow("◐"), fail: C.red("✖"
 
 const crawl = await crawlSite(target, (m) => !asJson && console.error(C.dim("  " + m)));
 const pillars = runDeterministicAudit(crawl);
+const envForContent = Object.fromEntries(
+  (await import("node:fs")).readFileSync(new URL("./.dev.vars", import.meta.url), "utf8")
+    .split("\n").filter((l) => l.includes("=") && !l.trim().startsWith("#"))
+    .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; })
+);
+const contentPillar = await auditContent(crawl, process.argv.includes("--no-model") ? {} : envForContent);
+if (contentPillar?.pillar?.max > 0) pillars.push(contentPillar.pillar);
 const report = scoreReport(pillars);
 const fixes = attachArtifacts(rankFixes(pillars), crawl);
 
