@@ -76,15 +76,79 @@ allowing `OAI-SearchBot` (OpenAI licensing deals). Parser resolves correctly.
 - Fixes needing the model stage say what they'll produce instead of showing
   an empty card
 
-## Milestone 3 — queries + engines
+## Milestone 3 — queries + engines ✅ (backend; frontend pending)
 
-- [ ] Query generation from crawl (CHEAP model), 12 fixed shapes
-- [ ] 5 engine adapters via OpenRouter — **`"engine": "native"` is mandatory**
-      (the default hybrid silently falls back to Exa, which would make all five
-      engines read identical context and turn the comparison into theatre)
-- [ ] Failed engine → dropped with a visible note, never silently downgraded
-- [ ] Pillar E scoring: mention rate, citation rate, share of voice, sentiment
-- [ ] `also_cited` event
+- [x] Query generation from crawl (CHEAP model), 12 fixed shapes
+- [x] **FOUR** engine adapters, not five — Gemini cannot ground (see below)
+- [x] Failed engine → reported unavailable, never silently downgraded
+- [x] Pillar E: mention rate, citation rate, share of voice, sentiment
+- [x] `also_cited` event
+- [x] Deployed to aeo-api.canonical.cc and verified live
+- [ ] Frontend: engine grid, query chips, also-cited (design mock still shows 5)
+
+### Engine findings — all verified against the live API, none documented
+
+| Engine | Model | $/query | Verdict |
+|---|---|---|---|
+| Perplexity | `sonar` | $0.0052 | best citations, cheapest |
+| ChatGPT | `gpt-5.6-luna` | $0.0122 | works |
+| Grok | `grok-4.3` | $0.0259 | works; 4.5 costs 8× for the same result |
+| Claude | `claude-sonnet-5` | $0.0690 | works; 61% of total spend |
+| ~~Gemini~~ | — | — | **excluded: zero citations in every config** |
+
+1. **Gemini cannot ground through OpenRouter.** Zero citations with the native
+   plugin, without it, on 3.5-flash and 3.6-flash. Answers from parametric
+   memory. A column that cannot cite is a fake column.
+2. **Perplexity must NOT get the web plugin** — Sonar 404s on
+   `engine:"native"` because search is intrinsic. Every other engine requires it.
+3. **Low `max_tokens` silently suppresses search.** At 500 tokens gpt-5.6-luna
+   returned 0 citations and answered from memory; at 900 it returned 3
+   citations. A cheap config yields a tool that looks fine and reports fiction.
+
+### Bugs found and fixed during milestone 3
+
+- **Reasoning tokens count against `max_tokens` and scale with prompt size.**
+  Bit us three separate times: engine search suppression (500→900), sentiment
+  returning empty (1200→3000), and query generation failing *in production but
+  not locally* (2000→6000). Any Gemini call needs generous headroom.
+- **`generateQueries` returned `null` on failure**, indistinguishable from "no
+  API key" — so a broken stage rendered as a deliberately skipped one. It now
+  throws with the model, the response length and a preview, and the worker
+  logs it and surfaces a `warn` to the UI.
+- **Cloudflare subrequest limit killed whole engines.** The crawl spends ~20 of
+  the free plan's 50; 12 queries × 4 engines needed 48 more. Perplexity got 3
+  of 12 through and Grok got 0 — and a dead engine reads as "never mentions
+  you", which is a lie. The pipeline now counts subrequests during the crawl,
+  divides the remainder across engines, and tells the user when it asked fewer
+  questions than planned.
+
+### Live production verification (netstock.com)
+
+```
+WARN [budget]: Asked 6 of 12 questions — the rest didn't fit the per-run limit.
+  ChatGPT     6/6 | band C | mention 83% | cite 17%
+  Claude      6/6 | band D | mention 50% | cite  0%
+  Perplexity  6/6 | band D | mention 67% | cite 17%
+  Grok        6/6 | band C | mention 83% | cite 33%
+  sentiment: positive | also cited: stockiqtech.com, deposco.com, leafio.ai
+SCORE 55/100 grade C (raw 41/75) omitted=['content']
+```
+
+### Deployment
+
+- Worker live at **aeo-api.canonical.cc** (+ canonical-aeo.ai-29d.workers.dev)
+- KV: `AEO_RL` + `AEO_CACHE` — deliberately NOT the existing plain-`RL`
+  namespace, which belongs to canonical-lookalike
+- `OPENROUTER_API_KEY` set as a Worker secret
+- Global spend cap `MAX_PAID_RUNS_PER_DAY = 50` (~$75/day worst case). Past it,
+  scans still run and return the full free deterministic audit.
+
+### Open cost/plan decision
+
+`SUBREQUEST_BUDGET = 45` fits the **free** Workers plan, which limits us to
+**6 of 12 questions**. Workers Paid ($5/mo) raises the ceiling to 1000
+subrequests — set `SUBREQUEST_BUDGET = 950` for the full 12 and roughly double
+the statistical confidence, at ~$1.50/scan instead of ~$0.75.
 
 ## Milestone 4 — Pillar C
 

@@ -17,7 +17,16 @@ const MAX_BYTES = 1_500_000; // don't pull a whole video into memory
 /** Pages worth having even if they aren't linked from the nav. */
 const PRIORITY_PATHS = ["/pricing", "/about", "/product", "/products", "/docs", "/faq"];
 
+/* Every network call goes through fetchText, so counting here gives an exact
+   subrequest tally. Cloudflare caps subrequests per Worker invocation (50 on
+   the free plan, 1000 on paid) and exceeding it kills later calls outright —
+   which silently cost us a whole answer engine before this existed. */
+let subrequests = 0;
+export const subrequestCount = () => subrequests;
+export const resetSubrequests = () => { subrequests = 0; };
+
 async function fetchText(url, { timeout = PAGE_TIMEOUT_MS, accept } = {}) {
+  subrequests++;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
   try {
@@ -122,6 +131,7 @@ async function fetchWellKnown(origin, homeHtml) {
  * SSE stream can narrate the slow part.
  */
 export async function crawlSite(input, onProgress = () => {}) {
+  resetSubrequests();
   const requested = normalizeInput(input);
 
   onProgress(`Fetching ${requested.hostname}…`);
@@ -176,5 +186,5 @@ export async function crawlSite(input, onProgress = () => {}) {
   // Priority paths that don't exist are simply absent — not an error.
   const pages = [home, ...fetched.filter((p) => p.status === 200 && /html/i.test(p.contentType || ""))];
 
-  return { origin, hostname, home, pages, robotsTxt, sitemap, wellKnown, requestedOrigin: requested.origin, redirectedTo };
+  return { origin, hostname, home, pages, robotsTxt, sitemap, wellKnown, requestedOrigin: requested.origin, redirectedTo, subrequests: subrequestCount() };
 }

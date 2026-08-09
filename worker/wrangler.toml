@@ -18,18 +18,66 @@ DAILY_LIMIT = "3"
 # Hybrid models via OpenRouter, same convention as canonical-lookalike.
 #   CHEAP  → query generation + answer parsing
 #   STRONG → content-shape analysis + fix artifacts
-MODEL_CHEAP = "google/gemini-2.5-flash"
-MODEL_STRONG = "anthropic/claude-sonnet-4.5"
+MODEL_CHEAP = "google/gemini-3.5-flash"
+MODEL_STRONG = "anthropic/claude-sonnet-5"
 
-# Per-IP daily rate limiting. Create with:
-#   wrangler kv namespace create RL
-# [[kv_namespaces]]
-# binding = "RL"
-# id = "REPLACE_ME"
+# Answer engines for Pillar E. FOUR, not five — see ENGINE NOTES below.
+ENGINE_CHATGPT = "openai/gpt-5.6-luna"
+ENGINE_CLAUDE = "anthropic/claude-sonnet-5"
+ENGINE_PERPLEXITY = "perplexity/sonar"
+ENGINE_GROK = "x-ai/grok-4.3"
+
+# Measured cost per engine call on a real buyer query (2026-08-08):
+#   perplexity/sonar     $0.0052   10 citations
+#   openai/gpt-5.6-luna  $0.0122    3 citations
+#   x-ai/grok-4.3        $0.0259    3 citations
+#   anthropic/sonnet-5   $0.0690    5 citations
+# → $0.112/query → ~$1.35 per 12-query run. Within the PRD's $0.75–1.65.
+
+# ENGINE NOTES — all three verified empirically, none of them documented:
+#
+# 1. GEMINI IS EXCLUDED. It returns zero citations through OpenRouter in every
+#    configuration tried (native plugin, no plugin, 3.5-flash and 3.6-flash).
+#    It answers from parametric memory, not retrieval. Including it would mean
+#    shipping a column that cannot cite — and per the PRD, a missing column
+#    beats a fake one. Revisit if OpenRouter adds Google grounding.
+#
+# 2. PERPLEXITY MUST NOT GET THE WEB PLUGIN. Sonar 404s on engine:"native"
+#    ("does not support native web search") because search is intrinsic to the
+#    model. Passing no plugin yields 10 citations. Every other engine REQUIRES
+#    plugins:[{id:"web", engine:"native"}].
+#
+# 3. MAX_TOKENS BELOW ~900 SILENTLY SUPPRESSES SEARCH. At 500 tokens
+#    gpt-5.6-luna returned 0 citations and a 162-char answer from memory; at
+#    900 it returned 3 citations and 1817 chars. A cheap-looking config would
+#    produce a tool that works and reports fiction. Do not lower this.
+ENGINE_MAX_TOKENS = "900"
+
+# Global paid-scan ceiling per UTC day, across all callers. Per-IP limits cap
+# one abuser, not a distributed one, and this endpoint is reachable by curl
+# regardless of ALLOWED_ORIGIN. At ~$1.50 a run this bounds the worst case to
+# roughly $75/day. Past the cap, scans still run and still return the full
+# deterministic audit — only the paid engine half is skipped.
+MAX_PAID_RUNS_PER_DAY = "50"
+
+# Cloudflare subrequest ceiling per Worker invocation: 50 on the free plan,
+# 1000 on Workers Paid. The crawl spends ~20, leaving ~23 for engine calls —
+# about 5 questions each across 4 engines. Exceeding it does not error the run,
+# it kills later subrequests outright, which silently cost us a whole engine.
+#
+# RAISE THIS TO ~950 ON WORKERS PAID ($5/mo) to get the full 12 questions.
+SUBREQUEST_BUDGET = "45"
+
+# Per-IP daily rate limiting.
+# Named AEO_RL, not RL: a namespace called plain "RL" already exists and belongs
+# to canonical-lookalike. Sharing it would couple the two labs' storage, which
+# is the opposite of why this lab got its own Worker.
+[[kv_namespaces]]
+binding = "RL"
+id = "41510ec46e084e90aba220a5e90cda7c"
 
 # Report cache, keyed by domain, 7-day TTL. Kept separate from RL because the
 # TTLs differ by an order of magnitude and clearing one must not clear the other.
-#   wrangler kv namespace create CACHE
-# [[kv_namespaces]]
-# binding = "CACHE"
-# id = "REPLACE_ME"
+[[kv_namespaces]]
+binding = "CACHE"
+id = "1191019be90b428aa33b222c257239e4"

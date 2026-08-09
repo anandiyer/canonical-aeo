@@ -13,6 +13,9 @@ import { crawlSite, normalizeInput } from "./crawl.js";
 import { runDeterministicAudit } from "./audit.js";
 import { scoreReport, rankFixes } from "./score.js";
 import { attachArtifacts } from "./fixes.js";
+import { generateQueries } from "./queries.js";
+import { runEngines, alsoCited, ENGINES } from "./engines.js";
+import { scoreVisibility } from "./visibility.js";
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days (PRD §9)
 
@@ -50,6 +53,28 @@ async function checkQuota(request, env) {
   const used = Number((await env.RL.get(key)) || 0);
   if (used >= limit) return { allowed: false, remaining: 0, key, used };
   return { allowed: true, remaining: limit - used, key, used };
+}
+
+/**
+ * Global spend guard.
+ *
+ * Per-IP limits cap one abuser, not a distributed one, and the engine stage
+ * costs real money (~$1.50 a run). This caps paid runs per UTC day across
+ * everyone. When it trips the scan still runs — it just falls back to the
+ * deterministic half, which is free. Degrading beats failing: the user still
+ * gets 50 points of real findings and the artifacts to fix them.
+ */
+async function paidRunsAllowed(env) {
+  const cap = Number(env.MAX_PAID_RUNS_PER_DAY || 50);
+  if (!env.RL) return { allowed: true, used: 0, cap };
+  const key = `aeo:paid:${todayKey()}`;
+  const used = Number((await env.RL.get(key)) || 0);
+  return { allowed: used < cap, used, cap, key };
+}
+
+async function consumePaidRun(env, guard) {
+  if (!env.RL || !guard.key) return;
+  await env.RL.put(guard.key, String(guard.used + 1), { expirationTtl: 60 * 60 * 36 });
 }
 
 async function consumeQuota(env, quota) {
@@ -99,9 +124,12 @@ function sseStream(handler, request, env) {
 const STEPS = ["fetch", "audit", "queries", "engines", "score", "fixes"];
 
 /**
- * Milestone 1 runs the deterministic half only: fetch → audit → score.
- * The query/engine/fix stages are emitted as skipped so the frontend stepper
- * renders its final shape from day one.
+ * fetch → audit → queries → engines → score → fixes.
+ *
+ * The query and engine stages need OPENROUTER_API_KEY. Without it they report
+ * `skipped` and the visibility pillar is omitted from the score entirely
+ * (excluded from the denominator, not counted as zero), so the tool still
+ * produces a valid deterministic report.
  */
 async function runPipeline(send, input, env, quota) {
   const stage = (step, state) => send({ type: "stage", step, state });
@@ -148,8 +176,88 @@ async function runPipeline(send, input, env, quota) {
   for (const pillar of pillarDetail) await send({ type: "audit", pillar });
   await recordStage("audit", "done");
 
-  // 3–4 — not built yet (milestones 3–4). Announced rather than silently absent.
-  for (const step of ["queries", "engines"]) await recordStage(step, "skipped");
+  // 3 — query generation
+  let queryPlan = null;
+  let visibility = null;
+  let engineDetail = null;
+  let alsoCitedBrands = [];
+  const spend = await paidRunsAllowed(env);
+  if (!spend.allowed) {
+    await send({
+      type: "warn",
+      where: "budget",
+      message: `Daily engine budget reached (${spend.cap} paid scans). The technical audit below is complete; the live-engine half will be back tomorrow.`,
+    });
+  }
+  if (env.OPENROUTER_API_KEY && spend.allowed) {
+    await consumePaidRun(env, spend);
+    await stage("queries", "active");
+    await status("Working out what your buyers would ask…");
+    try {
+      queryPlan = await generateQueries(crawl, env);
+    } catch (err) {
+      const message = String(err?.message || err);
+      console.error("query generation failed:", message);
+      await send({ type: "warn", where: "queries", message });
+    }
+    if (queryPlan) {
+      await send({
+        type: "queries",
+        brand: queryPlan.brand,
+        category: queryPlan.category,
+        queries: queryPlan.queries,
+      });
+      await recordStage("queries", "done");
+    } else {
+      await recordStage("queries", "skipped");
+    }
+  } else {
+    await recordStage("queries", "skipped");
+  }
+
+  // 4 — ask the answer engines
+  if (queryPlan) {
+    await stage("engines", "active");
+    await status(`Asking ${ENGINES.length} answer engines ${queryPlan.queries.length} questions…`);
+    try {
+      // Cloudflare caps subrequests per invocation (50 free / 1000 paid). The
+      // crawl has already spent some; reserve 2 for sentiment + headroom and
+      // divide the rest across engines. Before this, exceeding the cap killed
+      // whole engines mid-run and they reported as "never mentions you".
+      const cap = Number(env.SUBREQUEST_BUDGET || 45);
+      const remaining = Math.max(4, cap - (crawl.subrequests || 0) - 2);
+      const engineRun = await runEngines(
+        queryPlan, crawl, env,
+        (engine) => status(`${engine.label}: ${engine.mentioned}/${engine.answered} mentions`),
+        { subrequestBudget: remaining }
+      );
+      if (engineRun?.queriesTrimmed > 0) {
+        await send({
+          type: "warn",
+          where: "budget",
+          message: `Asked ${engineRun.queriesAsked} of ${queryPlan.queries.length} questions — the rest didn't fit this platform's per-run request limit. Rates below are out of ${engineRun.queriesAsked}.`,
+        });
+      }
+      if (engineRun) {
+        visibility = await scoreVisibility(engineRun, queryPlan, env);
+        if (visibility) {
+          pillars.push(visibility.pillar);
+          engineDetail = visibility.detail;
+          alsoCitedBrands = alsoCited(engineRun.engines, queryPlan);
+          await send({ type: "engines", ...engineDetail });
+          await send({ type: "also_cited", brands: alsoCitedBrands });
+        }
+      }
+      await recordStage("engines", visibility ? "done" : "skipped");
+    } catch (err) {
+      const message = String(err?.message || err);
+      console.error("engine stage failed:", message);
+      await send({ type: "warn", where: "engines", message });
+      await recordStage("engines", "skipped");
+    }
+  } else {
+    await recordStage("engines", "skipped");
+  }
 
   // 5 — score
   await stage("score", "active");
@@ -164,7 +272,23 @@ async function runPipeline(send, input, env, quota) {
   await recordStage("fixes", "done");
 
   await send({ type: "done" });
-  return { site, report, fixes, pillarDetail, stepStates };
+  // Rebuilt here rather than reused: the visibility pillar is appended after
+  // the audit block, and a cached replay must include it.
+  const fullDetail = pillars.map((p) => ({
+    id: p.id, label: p.label, max: p.max,
+    score: p.checks.reduce((s, c) => s + c.points, 0),
+    checks: p.checks.map(({ id, label, state, points, max, evidence }) => ({ id, label, state, points, max, evidence })),
+  }));
+  return {
+    site, report, fixes, pillarDetail: fullDetail, stepStates,
+    // Only the displayable slice of the plan — the raw engine answers can run
+    // to hundreds of KB and KV has a value size limit.
+    queryPlan: queryPlan
+      ? { brand: queryPlan.brand, category: queryPlan.category, queries: queryPlan.queries }
+      : null,
+    engineDetail,
+    alsoCitedBrands,
+  };
 }
 
 /* ── router ─────────────────────────────────────────────────────────────── */
@@ -215,6 +339,16 @@ export default {
             }
             if (hit.site) await send({ type: "site", site: hit.site });
             for (const p of hit.pillarDetail || []) await send({ type: "audit", pillar: p });
+            if (hit.queryPlan) {
+              await send({
+                type: "queries",
+                brand: hit.queryPlan.brand,
+                category: hit.queryPlan.category,
+                queries: hit.queryPlan.queries,
+              });
+            }
+            if (hit.engineDetail) await send({ type: "engines", ...hit.engineDetail });
+            if (hit.alsoCitedBrands?.length) await send({ type: "also_cited", brands: hit.alsoCitedBrands });
             await send({ type: "score", ...hit.report });
             await send({ type: "fixes", fixes: hit.fixes || [] });
             await send({ type: "done" });
