@@ -3,8 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node devserver.mjs",
     "test": "node --test test/*.test.js",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "scan": "node scan.mjs",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
   }
 }

@@ -12,6 +12,7 @@
 
 import http from "node:http";
 import fs from "node:fs";
+import path from "node:path";
 import worker from "./src/worker.js";
 
 /* Load .dev.vars and the [vars] block from wrangler.toml, the same way
@@ -80,8 +81,36 @@ console.log(
   "| subrequest budget:", env.SUBREQUEST_BUDGET || 45
 );
 
+/* Serve ../site from the same origin as the API. Same-origin means no CORS to
+   configure and one URL to open — the two-server setup was the main friction in
+   testing this locally. */
+const SITE_DIR = new URL("../site/", import.meta.url).pathname;
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+               ".svg": "image/svg+xml", ".ico": "image/x-icon", ".json": "application/json" };
+
+function serveStatic(req, res) {
+  let rel = decodeURIComponent(new URL(req.url, "http://x").pathname);
+  if (rel.endsWith("/")) rel += "index.html";
+  // Resolve then confirm containment, so ../ can't escape the site directory.
+  const file = path.resolve(SITE_DIR, "." + rel);
+  if (!file.startsWith(path.resolve(SITE_DIR))) {
+    res.writeHead(403).end("Forbidden");
+    return true;
+  }
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
+  res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
+  res.end(fs.readFileSync(file));
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = `http://${req.headers.host || "localhost"}${req.url}`;
+
+  // Anything that isn't an API route is a static asset request.
+  const pathname = new URL(url).pathname;
+  if (req.method === "GET" && !pathname.startsWith("/aeo") && !pathname.startsWith("/feedback")) {
+    if (serveStatic(req, res)) return;
+  }
 
   let body;
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -110,4 +139,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`AEO worker (dev) → http://localhost:${PORT}`));
+server.listen(PORT, () =>
+  console.log(`\n  ▸ Open  http://localhost:${PORT}/   (page + API, same origin)\n`)
+);
