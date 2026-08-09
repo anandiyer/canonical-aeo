@@ -860,3 +860,40 @@ a:hover { color: #ffffff; }
   .score-num { font-size: 1.55rem; }
   .fix-title { font-size: 1rem; }
 }
+
+/* ── states introduced by the live build ─────────────────────────────── */
+
+/* A pipeline step that hasn't been built yet. Visibly distinct from both
+   "done" and "running" — showing it as complete would claim we ran something
+   we didn't. */
+.step.skipped { color: var(--pending-grey); }
+.step.skipped .dot {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--pending-grey);
+}
+
+/* The honest footnote under the pillar bars: what wasn't measured and why it
+   isn't being counted as zero. */
+.not-measured {
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--card-line);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--card-muted);
+}
+.not-measured b { color: var(--card-ink); font-weight: 600; }
+
+/* A fix whose artifact needs the model stage. */
+.fix-pending {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px dashed var(--card-line);
+  border-radius: 0.5rem;
+  background: var(--card-tint);
+  font-size: 0.83rem;
+  color: var(--card-muted);
+}
+.fix-pending b { color: var(--card-soft-ink); font-weight: 600; }

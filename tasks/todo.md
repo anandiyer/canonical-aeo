@@ -47,13 +47,34 @@ allowing `OAI-SearchBot` (OpenAI licensing deals). Parser resolves correctly.
   classified cross-origin and dropped, and every subsequent fetch re-followed
   the redirect. Now re-derived from `home.finalUrl`.
 
-## Milestone 2 — frontend wired to the Worker
+## Milestone 2 — frontend wired to the Worker ✅
 
-- [ ] Replace hardcoded demo data in `site/index.html` with `app.js`
-- [ ] SSE client: `stage` / `status` / `site` / `audit` / `score` / `fixes` / `quota` / `error`
-- [ ] Render score card, pillar bars, engine grid, fix cards from live events
-- [ ] Cached-report permalink `?d=example.com`
-- [ ] Error + 429 states
+- [x] Demo data replaced with a real SSE client (`app.js`)
+- [x] Handles `stage` / `status` / `site` / `audit` / `score` / `fixes` / `quota` / `cached` / `error` / `done`
+- [x] Score ring, pillar bars, fix cards with copy-able artifacts, diff rendering
+- [x] Cached-report permalink `?d=example.com`; `?api=` override for dev
+- [x] Error + 429 states; JS-shell interrupt banner
+- [x] `devserver.mjs` — runs the Worker on plain node, so the frontend is
+      testable without a Cloudflare session
+- [x] Verified in a real browser end-to-end against canonical.cc
+
+### Bugs found and fixed during milestone 2
+
+- The cache stored only `{hostname, origin}` while the live path emitted the
+  full site object, so a **cached report displayed "undefined pages crawled ·
+  no robots.txt"** for a site that has one. Cache now stores what it replays.
+- A cached replay marked **every** step `done`, including the two that never
+  ran. Step states are now recorded during the live run and replayed verbatim.
+- Both are covered by `test/worker.test.js`, which runs the pipeline twice
+  against a stubbed site and asserts the replay matches the live run.
+
+### Honest-reporting decisions
+
+- Unbuilt stages render as dashed `–` steps, never as complete
+- Unmeasured pillars are excluded from the denominator and named in the card,
+  never scored as zero
+- Fixes needing the model stage say what they'll produce instead of showing
+  an empty card
 
 ## Milestone 3 — queries + engines
 

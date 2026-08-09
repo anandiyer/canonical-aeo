@@ -109,58 +109,62 @@ async function runPipeline(send, input, env, quota) {
 
   await send({ type: "quota", remaining: quota.remaining });
 
+  // Recorded so a cached replay reproduces exactly what the live run reported.
+  // Storing less than we emit is how a cached report ends up claiming steps ran
+  // that never did.
+  const stepStates = {};
+  const recordStage = async (step, state) => {
+    if (state === "done" || state === "skipped") stepStates[step] = state;
+    await stage(step, state);
+  };
+
   // 1 — fetch
   await stage("fetch", "active");
   const crawl = await crawlSite(input, status);
-  await send({
-    type: "site",
-    site: {
-      hostname: crawl.hostname,
-      origin: crawl.origin,
-      pagesCrawled: crawl.pages.length,
-      hasRobots: crawl.robotsTxt != null,
-      sitemap: crawl.sitemap,
-    },
-  });
-  await stage("fetch", "done");
+  const site = {
+    hostname: crawl.hostname,
+    origin: crawl.origin,
+    pagesCrawled: crawl.pages.length,
+    hasRobots: crawl.robotsTxt != null,
+    sitemap: crawl.sitemap,
+    redirectedTo: crawl.redirectedTo || null,
+  };
+  await send({ type: "site", site });
+  await recordStage("fetch", "done");
 
   // 2 — deterministic audit
   await stage("audit", "active");
   await status("Checking crawler access, schema and agent readiness…");
   const pillars = runDeterministicAudit(crawl);
-  for (const p of pillars) {
-    await send({
-      type: "audit",
-      pillar: {
-        id: p.id,
-        label: p.label,
-        max: p.max,
-        score: p.checks.reduce((s, c) => s + c.points, 0),
-        checks: p.checks.map(({ id, label, state, points, max, evidence }) => ({
-          id, label, state, points, max, evidence,
-        })),
-      },
-    });
-  }
-  await stage("audit", "done");
+  const pillarDetail = pillars.map((p) => ({
+    id: p.id,
+    label: p.label,
+    max: p.max,
+    score: p.checks.reduce((s, c) => s + c.points, 0),
+    checks: p.checks.map(({ id, label, state, points, max, evidence }) => ({
+      id, label, state, points, max, evidence,
+    })),
+  }));
+  for (const pillar of pillarDetail) await send({ type: "audit", pillar });
+  await recordStage("audit", "done");
 
   // 3–4 — not built yet (milestones 3–4). Announced rather than silently absent.
-  for (const step of ["queries", "engines"]) await stage(step, "skipped");
+  for (const step of ["queries", "engines"]) await recordStage(step, "skipped");
 
   // 5 — score
   await stage("score", "active");
   const report = scoreReport(pillars);
   await send({ type: "score", ...report });
-  await stage("score", "done");
+  await recordStage("score", "done");
 
-  // 6 — fixes: ranked now, artifact generation lands in milestone 5.
+  // 6 — fixes
   await stage("fixes", "active");
   const fixes = attachArtifacts(rankFixes(pillars), crawl);
   await send({ type: "fixes", fixes });
-  await stage("fixes", "done");
+  await recordStage("fixes", "done");
 
   await send({ type: "done" });
-  return { site: { hostname: crawl.hostname, origin: crawl.origin }, report, fixes };
+  return { site, report, fixes, pillarDetail, stepStates };
 }
 
 /* ── router ─────────────────────────────────────────────────────────────── */
@@ -204,7 +208,11 @@ export default {
         if (hit) {
           return sseStream(async (send) => {
             await send({ type: "cached", cachedAt: hit.cachedAt });
-            for (const step of STEPS) await send({ type: "stage", step, state: "done" });
+            // Replay the recorded step states, not a blanket "done" — a step
+            // that was skipped on the live run must still read as skipped here.
+            for (const step of STEPS) {
+              await send({ type: "stage", step, state: hit.stepStates?.[step] || "done" });
+            }
             if (hit.site) await send({ type: "site", site: hit.site });
             for (const p of hit.pillarDetail || []) await send({ type: "audit", pillar: p });
             await send({ type: "score", ...hit.report });

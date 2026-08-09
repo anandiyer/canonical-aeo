@@ -6,7 +6,7 @@
     <title>Canonical AEO Readiness Check · Can AI find your company?</title>
     <meta
       name="description"
-      content="Paste your URL. Get an AEO readiness score, see how five answer engines actually describe you, and get the exact code to fix what's broken. A Canonical Labs tool."
+      content="Paste your URL. Get an AEO readiness score, see what answer engines can actually read, and get the exact code to fix what's broken. A Canonical Labs tool."
     />
     <link rel="canonical" href="https://www.canonical.cc/labs/aeo/" />
 
@@ -14,7 +14,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.canonical.cc/labs/aeo/" />
     <meta property="og:title" content="Canonical AEO Readiness Check · Can AI find your company?" />
-    <meta property="og:description" content="Paste your URL. Get an AEO readiness score, see how five answer engines actually describe you, and get the exact code to fix what's broken." />
+    <meta property="og:description" content="Paste your URL. Get an AEO readiness score, see what answer engines can actually read, and get the exact code to fix what's broken." />
     <meta property="og:image" content="https://www.canonical.cc/images/site-logo.png" />
     <meta property="og:site_name" content="Canonical" />
 
@@ -22,7 +22,7 @@
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://www.canonical.cc/labs/aeo/" />
     <meta property="twitter:title" content="Canonical AEO Readiness Check · Can AI find your company?" />
-    <meta property="twitter:description" content="Paste your URL. Get an AEO readiness score, see how five answer engines actually describe you, and get the exact code to fix what's broken." />
+    <meta property="twitter:description" content="Paste your URL. Get an AEO readiness score, see what answer engines can actually read, and get the exact code to fix what's broken." />
     <meta property="twitter:image" content="https://www.canonical.cc/images/site-logo.png" />
 
     <link rel="icon" type="image/x-icon" href="https://www.canonical.cc/favicon.ico" />
@@ -35,7 +35,7 @@
          nav-dropdown and layout utilities so this lab matches the site exactly. -->
     <link rel="stylesheet" href="https://canonical.cc/css/style.css?v=20260515" />
     <!-- Lab-specific styles load after, so they win on any overlap. -->
-    <link rel="stylesheet" href="style.css?v=20260808a" />
+    <link rel="stylesheet" href="style.css?v=20260808b" />
   </head>
   <body>
     <!-- Shared canonical.cc header (verbatim markup + global stylesheet classes). -->
@@ -84,8 +84,8 @@
       <span class="lab-eyebrow">CANONICAL LABS · AEO READINESS</span>
       <h1>Can AI find you?</h1>
       <p>
-        Paste your URL. We audit what answer engines can actually read, ask five of
-        them about you, and hand you the exact code to fix what's broken.
+        Paste your URL. We audit what answer engines can actually read and hand
+        you the exact code to fix what's broken.
       </p>
     </header>
 
@@ -97,408 +97,88 @@
           placeholder="https://yourcompany.com"
           autocomplete="off"
           spellcheck="false"
-          value="https://northwind.io"
+          autocapitalize="off"
         />
         <button class="btn" id="go"><span class="btn-spinner"></span><span id="go-label">Check my AEO →</span></button>
       </div>
       <div class="search-hint">
-        <span>Live checks against ChatGPT, Claude, Gemini, Perplexity &amp; Grok — plus a full technical audit.</span>
-        <span class="quota" id="quota">3 checks left today</span>
+        <span id="hint">Crawler access, structured data and agent-readiness — checked, not guessed.</span>
+        <span class="quota" id="quota"></span>
       </div>
     </section>
 
     <!-- run stage -->
-    <section class="stage" id="stage">
-      <div class="stepper" id="stepper">
-        <div class="step done"><span class="dot">✓</span><span>Fetching site</span></div>
-        <div class="step done"><span class="dot">✓</span><span>Auditing structure</span></div>
-        <div class="step done"><span class="dot">✓</span><span>Generating queries</span></div>
-        <div class="step done"><span class="dot">✓</span><span>Asking 5 engines</span></div>
-        <div class="step done"><span class="dot">✓</span><span>Scoring</span></div>
-        <div class="step active"><span class="dot">6</span><span>Writing fixes</span></div>
-      </div>
+    <section class="stage is-hidden" id="stage">
+      <div class="stepper" id="stepper"></div>
       <div class="run-status" id="run-status">
         <span class="spinner" id="spinner"></span>
-        <span class="status-text" id="status">Generating your JSON-LD and llms.txt…</span>
+        <span class="status-text" id="status"></span>
       </div>
 
-      <!-- ══ SCORE CARD ══ occupies the same slot as Lookalike's .source-card ══ -->
-      <div class="card score-card" id="score-card">
+      <!-- Shown when the crawl succeeded but something about it needs flagging
+           (a JS-only shell, a redirect to a different host, a thin page). -->
+      <div class="anchor-warning is-hidden" id="audit-warning">
+        <div class="anchor-warning-body">
+          <b id="audit-warning-title">Heads up.</b>
+          <span id="audit-warning-msg"></span>
+        </div>
+      </div>
+
+      <!-- score card -->
+      <div class="card score-card is-hidden" id="score-card">
         <div class="score-head">
           <div class="score-id">
-            <h2 class="source-name">northwind.io</h2>
-            <p class="source-sub">Northwind Analytics · B2B supply-chain forecasting · scanned 8 Aug 2026</p>
+            <h2 class="source-name" id="site-name"></h2>
+            <p class="source-sub" id="site-sub"></p>
           </div>
           <div class="score-big">
             <div class="score-ring">
               <svg viewBox="0 0 76 76">
                 <circle class="ring-bg" cx="38" cy="38" r="33" stroke-width="7" />
-                <circle class="ring-fg grade-c" cx="38" cy="38" r="33" stroke-width="7"
-                        stroke-dasharray="207.3" stroke-dashoffset="99.5" />
+                <circle class="ring-fg" id="ring-fg" cx="38" cy="38" r="33" stroke-width="7"
+                        stroke-dasharray="207.35" stroke-dashoffset="207.35" />
               </svg>
-              <div class="score-num">52</div>
+              <div class="score-num" id="score-num">–</div>
             </div>
-            <span class="grade-band grade-c-bg">GRADE C</span>
+            <span class="grade-band" id="grade-band"></span>
           </div>
         </div>
 
         <p class="label">Where the points went</p>
-        <div class="pillars">
-          <div class="pillar">
-            <div class="axis-top"><span>Retrievability &amp; agent access</span><span class="tabular">11<span class="of">/20</span></span></div>
-            <div class="axis-bar"><div class="axis-fill" style="width:55%"></div></div>
-          </div>
-          <div class="pillar">
-            <div class="axis-top"><span>Structured meaning</span><span class="tabular">12<span class="of">/20</span></span></div>
-            <div class="axis-bar"><div class="axis-fill" style="width:60%"></div></div>
-          </div>
-          <div class="pillar">
-            <div class="axis-top"><span>Answer-shaped content</span><span class="tabular">16<span class="of">/25</span></span></div>
-            <div class="axis-bar"><div class="axis-fill" style="width:64%"></div></div>
-          </div>
-          <div class="pillar">
-            <div class="axis-top"><span>Agent-native readiness</span><span class="tabular">1<span class="of">/10</span></span></div>
-            <div class="axis-bar"><div class="axis-fill low" style="width:10%"></div></div>
-          </div>
-          <div class="pillar">
-            <div class="axis-top"><span>Live AI visibility</span><span class="tabular">12<span class="of">/25</span></span></div>
-            <div class="axis-bar"><div class="axis-fill" style="width:48%"></div></div>
-          </div>
-        </div>
+        <div class="pillars" id="pillars"></div>
+        <p class="not-measured is-hidden" id="not-measured"></p>
 
         <div class="source-actions">
-          <div class="fb">
-            <button class="fb-toggle" type="button">💬 Was this useful?</button>
-          </div>
-          <button class="wrong-person" type="button" id="edit-queries">Wrong queries? Edit →</button>
+          <div class="fb" id="fb"></div>
+          <button class="wrong-person is-hidden" type="button" id="rescan">Re-run this scan →</button>
         </div>
       </div>
 
-      <!-- ══ ENGINE GRID ══ -->
-      <p class="section-label">What each engine says about you</p>
-      <div class="engines">
-        <div class="engine">
-          <div class="engine-name">ChatGPT</div>
-          <span class="engine-band band-b">B</span>
-          <div class="engine-stat"><span>Mentioned</span><b class="tabular">7/12</b></div>
-          <div class="engine-stat"><span>Cited w/ link</span><b class="tabular">4/12</b></div>
-        </div>
-        <div class="engine">
-          <div class="engine-name">Perplexity</div>
-          <span class="engine-band band-b">B</span>
-          <div class="engine-stat"><span>Mentioned</span><b class="tabular">8/12</b></div>
-          <div class="engine-stat"><span>Cited w/ link</span><b class="tabular">6/12</b></div>
-        </div>
-        <div class="engine">
-          <div class="engine-name">Claude</div>
-          <span class="engine-band band-c">C</span>
-          <div class="engine-stat"><span>Mentioned</span><b class="tabular">5/12</b></div>
-          <div class="engine-stat"><span>Cited w/ link</span><b class="tabular">2/12</b></div>
-        </div>
-        <div class="engine">
-          <div class="engine-name">Gemini</div>
-          <span class="engine-band band-c">C</span>
-          <div class="engine-stat"><span>Mentioned</span><b class="tabular">4/12</b></div>
-          <div class="engine-stat"><span>Cited w/ link</span><b class="tabular">2/12</b></div>
-        </div>
-        <div class="engine">
-          <div class="engine-name">Grok</div>
-          <span class="engine-band band-d">D</span>
-          <div class="engine-stat"><span>Mentioned</span><b class="tabular">2/12</b></div>
-          <div class="engine-stat"><span>Cited w/ link</span><b class="tabular">0/12</b></div>
-        </div>
-      </div>
-      <p class="disclosure">
-        Measured through each engine's own API with native search. Not identical to what
-        a signed-in human sees — no personalization or chat memory. Directionally right,
-        not a guarantee.
-      </p>
-
-      <!-- ══ QUERY CHIPS ══ -->
-      <p class="section-label">The 12 buyer questions we asked</p>
-      <div class="card queries-card">
-        <div class="chips">
-          <span class="chip win">best supply chain forecasting software <i>✓ 4/5</i></span>
-          <span class="chip win">demand planning tools for mid-market retail <i>✓ 3/5</i></span>
-          <span class="chip lose">how much does demand forecasting software cost <i>✕ 0/5</i></span>
-          <span class="chip lose">Northwind Analytics vs Blue Yonder <i>✕ 1/5</i></span>
-          <span class="chip win">inventory forecasting for CPG brands <i>✓ 3/5</i></span>
-          <span class="chip lose">Northwind Analytics alternatives <i>✕ 1/5</i></span>
-          <span class="chip win">is Northwind Analytics any good <i>✓ 3/5</i></span>
-          <span class="chip lose">how do I reduce stockouts without overstocking <i>✕ 0/5</i></span>
-          <span class="chip win">AI demand planning platforms 2026 <i>✓ 4/5</i></span>
-          <span class="chip lose">supply chain forecasting software pricing <i>✕ 0/5</i></span>
-          <span class="chip win">Northwind Analytics reviews <i>✓ 2/5</i></span>
-          <span class="chip lose">best forecasting tool for 3PL operators <i>✕ 1/5</i></span>
-        </div>
-      </div>
-
-      <!-- ══ FIX LIST ══ occupies the same slot as Lookalike's #results-wrap ══ -->
-      <h2 class="results-title">6 things to fix, most damaging first</h2>
-      <div class="fixes">
-
-        <!-- 1 -->
-        <div class="card fix sev-critical">
-          <div class="fix-head">
-            <span class="fix-badge">Critical · +6 pts</span>
-            <span class="fix-where">robots.txt</span>
-          </div>
-          <h3 class="fix-title">You're blocking the crawler that feeds ChatGPT's citations</h3>
-          <p class="fix-why">
-            Your <code>robots.txt</code> blocks <code>OAI-SearchBot</code> and
-            <code>PerplexityBot</code> alongside the training crawlers. Blocking
-            <code>GPTBot</code> is a legitimate choice — it's training data. But
-            <code>OAI-SearchBot</code> is what fetches pages to <em>cite</em> in
-            answers. Blocking it removes you from ChatGPT's results entirely, which is
-            almost certainly not what you meant.
-          </p>
-          <div class="artifact">
-            <div class="artifact-bar">
-              <span class="artifact-name">robots.txt — replace lines 4–6</span>
-              <button class="copy-btn" type="button">Copy</button>
-            </div>
-<pre><code><span class="del">- User-agent: OAI-SearchBot
-- Disallow: /
-- User-agent: PerplexityBot
-- Disallow: /</span>
-<span class="add">+ # Training crawlers — still blocked, your call
-+ User-agent: GPTBot
-+ Disallow: /
-+
-+ # Answer crawlers — these produce citations. Allow.
-+ User-agent: OAI-SearchBot
-+ Allow: /
-+
-+ User-agent: PerplexityBot
-+ Allow: /
-+
-+ User-agent: Claude-SearchBot
-+ Allow: /</span></code></pre>
-          </div>
-          <p class="fix-where-to">Put it at <code>https://northwind.io/robots.txt</code></p>
-        </div>
-
-        <!-- 2 -->
-        <div class="card fix sev-critical">
-          <div class="fix-head">
-            <span class="fix-badge">Critical · +5 pts</span>
-            <span class="fix-where">/, /product, /pricing</span>
-          </div>
-          <h3 class="fix-title">Your pages are empty without JavaScript</h3>
-          <p class="fix-why">
-            We fetched your homepage the way a crawler does and got
-            <b>214 characters</b> of text. A real browser renders <b>4,180</b>. Your
-            content is client-rendered, and most answer-engine crawlers don't execute
-            JavaScript — so they see an empty shell. This single issue caps everything
-            else on this page.
-          </p>
-          <div class="artifact">
-            <div class="artifact-bar">
-              <span class="artifact-name">What a crawler currently sees at northwind.io</span>
-              <button class="copy-btn" type="button">Copy</button>
-            </div>
-<pre><code>&lt;div id="root"&gt;&lt;/div&gt;
-&lt;script src="/assets/index-4f2a1b.js"&gt;&lt;/script&gt;</code></pre>
-          </div>
-          <p class="fix-where-to">
-            Fix at the framework level — enable SSR or static prerendering for
-            <code>/</code>, <code>/product</code> and <code>/pricing</code> at minimum.
-            No snippet we can hand you here; this is a build-config change.
-          </p>
-        </div>
-
-        <!-- 3 -->
-        <div class="card fix sev-high">
-          <div class="fix-head">
-            <span class="fix-badge">High · +4 pts</span>
-            <span class="fix-where">/ (homepage &lt;head&gt;)</span>
-          </div>
-          <h3 class="fix-title">No Organization schema — engines can't anchor your identity</h3>
-          <p class="fix-why">
-            There's no <code>Organization</code> JSON-LD anywhere on your site. This is
-            the block that tells an engine you're one entity across your site, your
-            LinkedIn and your Crunchbase profile. Built below from what we found on
-            your About page.
-          </p>
-          <div class="artifact">
-            <div class="artifact-bar">
-              <span class="artifact-name">Organization JSON-LD — paste into &lt;head&gt;</span>
-              <button class="copy-btn" type="button">Copy</button>
-            </div>
-<pre><code>&lt;script type="application/ld+json"&gt;
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Northwind Analytics",
-  "url": "https://northwind.io",
-  "logo": "https://northwind.io/assets/logo.svg",
-  "description": "Demand forecasting and inventory planning
-    for mid-market retail and CPG supply chains.",
-  "foundingDate": "2021",
-  "sameAs": [
-    "https://www.linkedin.com/company/northwind-analytics",
-    "https://x.com/northwindio",
-    "https://github.com/northwind-io"
-  ]
-}
-&lt;/script&gt;</code></pre>
-          </div>
-          <p class="fix-where-to">
-            Paste into <code>&lt;head&gt;</code> on <code>https://northwind.io/</code>.
-            Every field above was read off your live site — nothing invented.
-          </p>
-        </div>
-
-        <!-- 4 -->
-        <div class="card fix sev-high">
-          <div class="fix-head">
-            <span class="fix-badge">High · +4 pts</span>
-            <span class="fix-where">/pricing</span>
-          </div>
-          <h3 class="fix-title">Your pricing page has no prices in it</h3>
-          <p class="fix-why">
-            Three of your twelve queries were pricing questions. You appeared in
-            <b>zero</b> of them. Your <code>/pricing</code> page says "Contact sales"
-            with no numbers in the text, so there is nothing for an engine to quote —
-            and it will quote a competitor who publishes a number instead. Even a
-            starting-from figure changes this.
-          </p>
-          <div class="artifact">
-            <div class="artifact-bar">
-              <span class="artifact-name">Offer JSON-LD + suggested visible copy</span>
-              <button class="copy-btn" type="button">Copy</button>
-            </div>
-<pre><code>&lt;script type="application/ld+json"&gt;
-{
-  "@context": "https://schema.org",
-  "@type": "Product",
-  "name": "Northwind Analytics",
-  "offers": {
-    "@type": "AggregateOffer",
-    "priceCurrency": "USD",
-    "lowPrice": "{{STARTING_PRICE}}",
-    "priceSpecification": {
-      "@type": "UnitPriceSpecification",
-      "billingIncrement": "1",
-      "unitCode": "MON"
-    }
-  }
-}
-&lt;/script&gt;</code></pre>
-          </div>
-          <p class="fix-where-to">
-            <b>⚠ <code>{{STARTING_PRICE}}</code> is a placeholder</b> — we won't invent a
-            number for you. Add your real floor price here and in visible page copy.
-          </p>
-        </div>
-
-        <!-- 5 -->
-        <div class="card fix sev-medium">
-          <div class="fix-head">
-            <span class="fix-badge">Medium · +3 pts</span>
-            <span class="fix-where">/ (opening paragraph)</span>
-          </div>
-          <h3 class="fix-title">Your first paragraph doesn't say what you do</h3>
-          <p class="fix-why">
-            Engines lift the first 40–60 words as a definition. Yours opens with a
-            positioning claim, not a definition, so there's no clean sentence to quote.
-          </p>
-          <div class="rewrite">
-            <div class="rewrite-col before">
-              <span class="rewrite-tag">Currently</span>
-              <p>"The supply chain moves faster than your spreadsheets. Northwind helps
-              forward-thinking teams stay ahead of what's next."</p>
-            </div>
-            <div class="rewrite-col after">
-              <span class="rewrite-tag">Suggested</span>
-              <p>"Northwind Analytics is demand forecasting software for mid-market
-              retail and CPG companies. It predicts SKU-level demand 12 weeks out and
-              flags stockout risk before it happens."</p>
-              <button class="copy-btn inline" type="button">Copy</button>
-            </div>
-          </div>
-          <p class="fix-where-to">Replace the hero paragraph on <code>https://northwind.io/</code></p>
-        </div>
-
-        <!-- 6 -->
-        <div class="card fix sev-ahead">
-          <div class="fix-head">
-            <span class="fix-badge">Ahead of the curve · +2 pts</span>
-            <span class="fix-where">/llms.txt</span>
-          </div>
-          <h3 class="fix-title">No llms.txt — almost nobody has one yet</h3>
-          <p class="fix-why">
-            A growing set of agents look for <code>/llms.txt</code> to understand a site
-            without crawling it. Nearly no one in your category has this. Generated below
-            from your sitemap and nav.
-          </p>
-          <div class="artifact">
-            <div class="artifact-bar">
-              <span class="artifact-name">llms.txt — new file at your web root</span>
-              <button class="copy-btn" type="button">Copy</button>
-            </div>
-<pre><code># Northwind Analytics
-
-&gt; Demand forecasting and inventory planning for mid-market
-&gt; retail and CPG supply chains. SKU-level predictions 12 weeks out.
-
-## Docs
-- [Getting started](https://northwind.io/docs/start): Connect your first data source
-- [Forecast API](https://northwind.io/docs/api): REST endpoints and auth
-- [Integrations](https://northwind.io/docs/integrations): NetSuite, SAP, Shopify
-
-## Product
-- [Demand planning](https://northwind.io/product/demand): Core forecasting engine
-- [Inventory optimization](https://northwind.io/product/inventory): Safety-stock math
-
-## Company
-- [About](https://northwind.io/about): Founded 2021, Seattle
-- [Customers](https://northwind.io/customers): Case studies</code></pre>
-          </div>
-          <p class="fix-where-to">Serve at <code>https://northwind.io/llms.txt</code> as <code>text/plain</code></p>
-        </div>
-      </div>
-
-      <!-- ══ ALSO CITED ══ ungated, plain -->
-      <div class="card also-cited">
-        <p class="label">Who got cited instead</p>
-        <p class="also-body">
-          On the 5 queries where you didn't appear, these brands did. Not a competitive
-          ranking — just who currently owns the answers you're missing.
-        </p>
-        <div class="chips">
-          <span class="chip">Blue Yonder <i>4 queries</i></span>
-          <span class="chip">o9 Solutions <i>3 queries</i></span>
-          <span class="chip">RELEX <i>3 queries</i></span>
-          <span class="chip">Kinaxis <i>2 queries</i></span>
-          <span class="chip">Netstock <i>2 queries</i></span>
-        </div>
-      </div>
+      <!-- fix list -->
+      <h2 class="results-title is-hidden" id="fixes-title"></h2>
+      <div class="fixes" id="fixes"></div>
     </section>
+
+    <!-- notices (errors / rate limit) -->
+    <div class="notice is-hidden" id="notice"></div>
 
     <!-- methodology -->
     <section class="method">
       <h2>How it works</h2>
-      <p class="method-sub">Two thirds of this score is deterministic. We check, we don't guess.</p>
+      <p class="method-sub">Most of this score is deterministic. We check, we don't guess.</p>
       <div class="method-steps">
         <div class="method-step"><span class="method-num">01</span><div>
           <h3>Crawl</h3>
-          <p>Fetch up to 10 pages the way a crawler does — no JavaScript — plus <code>robots.txt</code>, your sitemap and response headers.</p></div></div>
+          <p>Fetch up to 10 pages the way an answer-engine crawler does — no JavaScript — plus <code>robots.txt</code>, your sitemap and the well-known paths agents look for.</p></div></div>
         <div class="method-step"><span class="method-num">02</span><div>
           <h3>Technical audit</h3>
           <p>Bot allowlists, schema.org coverage, heading structure, render-without-JS, <code>llms.txt</code>, Content Signals. Pure checks — no model involved, so the same site scores the same twice.</p></div></div>
         <div class="method-step"><span class="method-num">03</span><div>
-          <h3>Query generation</h3>
-          <p>Read what you sell and to whom, then write 12 buyer-intent questions across fixed shapes — best-in-category, pricing, alternatives, jobs-to-be-done. You can edit them.</p></div></div>
-        <div class="method-step"><span class="method-num">04</span><div>
-          <h3>Ask five engines</h3>
-          <p>Every question goes to ChatGPT, Claude, Gemini, Perplexity and Grok using each one's own native search. We record whether you're named, whether you're linked, and how you're described.</p></div></div>
-        <div class="method-step"><span class="method-num">05</span><div>
           <h3>Score</h3>
-          <p>Five pillars, 100 points. 75 from the audit, 25 from what the engines actually said.</p></div></div>
-        <div class="method-step"><span class="method-num">06</span><div>
+          <p>Five pillars, 100 points. Anything we couldn't measure is excluded from the total and named, rather than quietly counted as zero.</p></div></div>
+        <div class="method-step"><span class="method-num">04</span><div>
           <h3>Write the fixes</h3>
-          <p>Generate the real artifact for each gap — the JSON-LD, the <code>llms.txt</code>, the <code>robots.txt</code> diff — built only from content we actually read on your site. Anything we can't source comes back as an obvious placeholder.</p></div></div>
+          <p>Generate the real artifact for each gap — the JSON-LD, the <code>llms.txt</code>, the <code>robots.txt</code> diff — built only from content we actually read on your site. Anything we can't source comes back as an obvious placeholder instead of a guess.</p></div></div>
       </div>
     </section>
 
@@ -528,18 +208,7 @@
           t.setAttribute("aria-expanded", String(open));
         });
       })();
-
-      // Static design mock — copy buttons are the only live behaviour.
-      document.querySelectorAll(".copy-btn").forEach(function (b) {
-        b.addEventListener("click", function () {
-          var pre = b.closest(".artifact") ? b.closest(".artifact").querySelector("code")
-                                           : b.closest(".rewrite-col").querySelector("p");
-          navigator.clipboard.writeText(pre.innerText).then(function () {
-            var o = b.textContent; b.textContent = "Copied ✓"; b.classList.add("copied");
-            setTimeout(function () { b.textContent = o; b.classList.remove("copied"); }, 1600);
-          });
-        });
-      });
     </script>
+    <script src="app.js?v=20260808b"></script>
   </body>
 </html>
