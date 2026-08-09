@@ -25,7 +25,7 @@
     <meta property="twitter:description" content="Paste your URL. Get an AEO readiness score, see what answer engines can actually read, and get the exact code to fix what's broken." />
     <meta property="twitter:image" content="https://www.canonical.cc/images/site-logo.png" />
 
-    <link rel="icon" type="image/x-icon" href="https://www.canonical.cc/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="preconnect" href="https://db.onlinewebfonts.com" crossorigin />
     <link
       rel="stylesheet"
@@ -33,7 +33,8 @@
     />
     <!-- Shared canonical.cc stylesheet: carries the global header, footer,
          nav-dropdown and layout utilities so this lab matches the site exactly. -->
-    <link rel="stylesheet" href="https://canonical.cc/css/style.css?v=20260515" />
+    <link rel="stylesheet" href="/css/style.css?v=20260525a" />
+    <link rel="stylesheet" href="/css/lab-share.css?v=20260525a" />
     <!-- Lab-specific styles load after, so they win on any overlap. -->
     <link rel="stylesheet" href="style.css?v=20260808b" />
   </head>
@@ -42,40 +43,40 @@
     <header id="header" class="fixed top-0 w-full bg-transparent z-50 transition-all duration-200">
       <div class="container mx-auto px-8 py-8">
         <div class="flex items-center justify-between">
-          <a href="https://canonical.cc/" class="logo-link">
-            <img src="https://canonical.cc/images/logo-rectangle-trans-short.svg" alt="Canonical" class="h-8 w-auto" />
+          <a href="/" class="logo-link">
+            <img src="/images/logo-rectangle-trans-short.svg" alt="Canonical" class="h-8 w-auto" />
           </a>
           <nav class="hidden md:flex items-center space-x-10">
-            <a href="https://canonical.cc/#about" class="nav-link">ABOUT</a>
+            <a href="/#about" class="nav-link">ABOUT</a>
             <a href="https://blog.canonical.cc" class="nav-link">BLOG</a>
-            <a href="https://canonical.cc/#thesis" class="nav-link">THESIS</a>
-            <a href="https://canonical.cc/portfolio" class="nav-link">PORTFOLIO</a>
+            <a href="/#thesis" class="nav-link">THESIS</a>
+            <a href="/portfolio" class="nav-link">PORTFOLIO</a>
             <div class="nav-dropdown">
-              <a href="https://canonical.cc/labs/" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">LABS</a>
+              <a href="/labs/" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">LABS</a>
               <div class="nav-dropdown-menu" role="menu">
-                <a href="https://canonical.cc/labs/dilutionlab/" class="nav-dropdown-item" role="menuitem">Dilution Lab</a>
-                <a href="https://canonical.cc/labs/fundmodeler/" class="nav-dropdown-item" role="menuitem">Fund Modeler</a>
-                <a href="https://canonical.cc/labs/power-law/" class="nav-dropdown-item" role="menuitem">Power Law Lab</a>
-                <a href="https://canonical.cc/physical-ai-robotics/" class="nav-dropdown-item" role="menuitem">Physical AI &amp; Robotics</a>
-                <a href="https://canonical.cc/labs/semiconductor-silicon-stack/" class="nav-dropdown-item" role="menuitem">Semiconductor Stack</a>
-                <a href="https://canonical.cc/labs/lookalike/" class="nav-dropdown-item" role="menuitem">Lookalike Finder</a>
-                <a href="https://canonical.cc/labs/capital-call-planner/" class="nav-dropdown-item" role="menuitem">Capital Call Planner</a>
-                <a href="https://canonical.cc/labs/aeo/" class="nav-dropdown-item" role="menuitem">AEO Readiness</a>
+                <a href="/labs/dilutionlab/" class="nav-dropdown-item" role="menuitem">Dilution Lab</a>
+                <a href="/labs/fundmodeler/" class="nav-dropdown-item" role="menuitem">Fund Modeler</a>
+                <a href="/labs/power-law/" class="nav-dropdown-item" role="menuitem">Power Law Lab</a>
+                <a href="/physical-ai-robotics/" class="nav-dropdown-item" role="menuitem">Physical AI &amp; Robotics</a>
+                <a href="/labs/semiconductor-silicon-stack/" class="nav-dropdown-item" role="menuitem">Semiconductor Stack</a>
+                <a href="/labs/lookalike/" class="nav-dropdown-item" role="menuitem">Lookalike Finder</a>
+                <a href="/labs/capital-call-planner/" class="nav-dropdown-item" role="menuitem">Capital Call Planner</a>
+                <a href="/labs/aeo/" class="nav-dropdown-item" role="menuitem">AEO Readiness</a>
               </div>
             </div>
-            <a href="https://canonical.cc/#team" class="nav-link">TEAM</a>
+            <a href="/#team" class="nav-link">TEAM</a>
           </nav>
           <button class="nav-menu-toggle md:hidden" type="button" id="navToggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-mobile">
             <span></span><span></span><span></span>
           </button>
         </div>
         <nav class="nav-mobile" id="nav-mobile" hidden>
-          <a href="https://canonical.cc/#about" class="nav-link">ABOUT</a>
+          <a href="/#about" class="nav-link">ABOUT</a>
           <a href="https://blog.canonical.cc" class="nav-link">BLOG</a>
-          <a href="https://canonical.cc/#thesis" class="nav-link">THESIS</a>
-          <a href="https://canonical.cc/portfolio" class="nav-link">PORTFOLIO</a>
-          <a href="https://canonical.cc/labs/" class="nav-link">LABS</a>
-          <a href="https://canonical.cc/#team" class="nav-link">TEAM</a>
+          <a href="/#thesis" class="nav-link">THESIS</a>
+          <a href="/portfolio" class="nav-link">PORTFOLIO</a>
+          <a href="/labs/" class="nav-link">LABS</a>
+          <a href="/#team" class="nav-link">TEAM</a>
         </nav>
       </div>
     </header>
@@ -87,6 +88,7 @@
         Paste your URL. We audit what answer engines can actually read and hand
         you the exact code to fix what's broken.
       </p>
+      <div data-lab-share data-github-path="labs/aeo"></div>
     </header>
 
     <section class="search">
@@ -228,6 +230,7 @@
         });
       })();
     </script>
+    <script src="/js/lab-share.js?v=20260525a"></script>
     <script src="app.js?v=20260808b"></script>
   </body>
 </html>

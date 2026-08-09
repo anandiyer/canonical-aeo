@@ -19,6 +19,16 @@ import { scoreVisibility } from "./visibility.js";
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days (PRD §9)
 
+/* Bump whenever the cached payload shape changes.
+ *
+ * Cached reports outlive the code that wrote them. A v1 entry replayed by v2
+ * code rendered "the 12 questions we asked" above engine columns that had
+ * answered 6 — the entry predated adaptive query sizing and per-question
+ * results. Versioning the key makes stale entries simply miss and expire,
+ * instead of half-rendering. */
+const CACHE_VERSION = "v2";
+const cacheKey = (domain) => `report:${CACHE_VERSION}:${domain}`;
+
 /* ── CORS ───────────────────────────────────────────────────────────────── */
 
 function corsHeaders(request, env) {
@@ -310,7 +320,7 @@ export default {
       const domain = decodeURIComponent(url.pathname.slice("/aeo/".length)).toLowerCase();
       if (!domain) return json({ error: "No domain given." }, 400, cors);
       if (!env.CACHE) return json({ error: "Not found." }, 404, cors);
-      const hit = await env.CACHE.get(`report:${domain}`, "json");
+      const hit = await env.CACHE.get(cacheKey(domain), "json");
       return hit ? json(hit, 200, cors) : json({ error: "Not found." }, 404, cors);
     }
 
@@ -333,7 +343,7 @@ export default {
 
       // Serve from cache before spending quota or money.
       if (!refresh && env.CACHE) {
-        const hit = await env.CACHE.get(`report:${domain}`, "json");
+        const hit = await env.CACHE.get(cacheKey(domain), "json");
         if (hit) {
           return sseStream(async (send) => {
             await send({ type: "cached", cachedAt: hit.cachedAt });
@@ -375,7 +385,7 @@ export default {
         const result = await runPipeline(send, body.input, env, quota);
         if (env.CACHE && result) {
           await env.CACHE.put(
-            `report:${domain}`,
+            cacheKey(domain),
             JSON.stringify({ ...result, cachedAt: new Date().toISOString() }),
             { expirationTtl: CACHE_TTL_SECONDS }
           );

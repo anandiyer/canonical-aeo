@@ -167,11 +167,31 @@ apportionment scales automatically; no other change needed.
   with no API key and the paid stages reported "skipped" — indistinguishable
   from a deliberate config choice.
 
-## Milestone 7 — ship (remaining)
+## Milestone 7 — ship ✅ LIVE
 
-- [ ] Add to `labs/index.html` grid + LABS dropdown in every other lab page
-- [ ] Fix canonical.cc's own findings (sitemap, llms.txt)
-- [ ] Publish `anandiyer.github.io/labs/aeo/` (site repo push = go-live)
+- [x] **https://canonical.cc/labs/aeo/** — deployed and verified end to end
+- [x] Added to the Labs grid and the shared header dropdown
+- [x] Site adopted the repo's newer conventions on rebase: root-relative
+      internal URLs and the `lab-share` strip (this lab is plain HTML, not
+      Jekyll-processed, so the share markup is inlined as lookalike does it)
+- [ ] Fix canonical.cc's own findings (sitemap, llms.txt) — the tool's own
+      report for canonical.cc lists both with artifacts ready to paste
+
+### Bug found by looking at the live page
+
+The chips read "the 12 buyer questions we asked" above engine columns that had
+answered 6. The cached entry predated adaptive query sizing and per-question
+results — **a v1 payload replayed by v2 code**. Cached reports outlive the code
+that writes them, so the cache key is now versioned (`report:v2:<domain>`);
+stale entries miss and expire rather than half-rendering. Bump `CACHE_VERSION`
+whenever the payload shape changes.
+
+## Remaining
+
+- Pillar C (answer-shaped content, 25 pts). Scores currently report out of 75
+  with the omission named on the card.
+- Optional: Workers Paid ($5/mo) → `SUBREQUEST_BUDGET = 950` for 12 questions
+  instead of 6.
 
 ## Milestone 4 — Pillar C
 
