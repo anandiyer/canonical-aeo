@@ -1,0 +1,9 @@
+# Copy to `.dev.vars` for local `wrangler dev`. Never commit `.dev.vars`.
+# In production: wrangler secret put OPENROUTER_API_KEY
+OPENROUTER_API_KEY="sk-or-REPLACE-ME"
+
+# Dev-only overrides
+ALLOWED_ORIGIN="*"
+DAILY_LIMIT="1000"
+
+# FEEDBACK_WEBHOOK="https://hooks.slack.com/services/REPLACE/ME"

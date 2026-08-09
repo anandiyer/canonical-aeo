@@ -1,0 +1,35 @@
+name = "canonical-aeo"
+main = "src/worker.js"
+compatibility_date = "2026-05-01"
+workers_dev = true
+
+# Custom domain on the canonical.cc zone. A hostname belongs to exactly one
+# Worker, so this lab gets its own subdomain rather than sharing
+# labs-api.canonical.cc with `lookalike` — an AEO run makes ~60 external calls,
+# and a runaway here must not be able to take the Lookalike Finder down with it.
+# wrangler provisions the DNS record + TLS cert on first deploy.
+[[routes]]
+pattern = "aeo-api.canonical.cc"
+custom_domain = true
+
+[vars]
+ALLOWED_ORIGIN = "https://canonical.cc,https://www.canonical.cc"
+DAILY_LIMIT = "3"
+# Hybrid models via OpenRouter, same convention as canonical-lookalike.
+#   CHEAP  → query generation + answer parsing
+#   STRONG → content-shape analysis + fix artifacts
+MODEL_CHEAP = "google/gemini-2.5-flash"
+MODEL_STRONG = "anthropic/claude-sonnet-4.5"
+
+# Per-IP daily rate limiting. Create with:
+#   wrangler kv namespace create RL
+# [[kv_namespaces]]
+# binding = "RL"
+# id = "REPLACE_ME"
+
+# Report cache, keyed by domain, 7-day TTL. Kept separate from RL because the
+# TTLs differ by an order of magnitude and clearing one must not clear the other.
+#   wrangler kv namespace create CACHE
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "REPLACE_ME"

@@ -1,0 +1,862 @@
+/* Canonical Labs — Lookalike Finder
+   Palette + type lifted verbatim from canonical.cc so this lab is visually
+   indistinguishable from the others (Dilution Lab, Fund Modeler, …). */
+
+:root {
+  /* electric-blue gradient + palette — exact canonical.cc values */
+  --bg-from: #1e3a8a;   /* blue-900 */
+  --bg-mid:  #1e40af;   /* blue-800 */
+  --bg-to:   #1d4ed8;   /* blue-700 */
+
+  --ink:     #ffffff;
+  --muted:   rgba(255, 255, 255, 0.7);
+  --subtle:  rgba(255, 255, 255, 0.85);
+  --faint:   rgba(255, 255, 255, 0.45);
+
+  --accent:       #2563eb;   /* blue-600 */
+  --accent-hover: #1d4ed8;   /* blue-700 */
+  --accent-soft:  #bfdbfe;   /* blue-200 — the signature pale-blue accent + glow */
+
+  /* warm "in-progress" accent — the yellow/orange used in the Power Law
+     (#facc15) and Semiconductor (#f97316) labs. Active step = yellow, done = grey. */
+  --active:        #facc15;  /* yellow-400 */
+  --active-strong: #f97316;  /* orange-500 */
+  --active-glow:   rgba(250, 204, 21, 0.5);
+  --done-grey:     rgba(255, 255, 255, 0.42);
+  --pending-grey:  rgba(255, 255, 255, 0.28);
+
+  /* white-card interior palette */
+  --card-bg:     #ffffff;
+  --card-soft:   rgba(255, 255, 255, 0.95);
+  --card-ink:    #0f172a;    /* slate-900 */
+  --card-soft-ink: #475569;  /* slate-600 */
+  --card-muted:  #64748b;    /* slate-500 */
+  --card-faint:  #94a3b8;    /* slate-400 */
+  --card-line:   #e2e8f0;    /* slate-200 */
+  --card-tint:   #f8fafc;    /* slate-50 */
+
+  --positive: #059669;
+  --warning:  #b45309;
+
+  /* amber accents for use INSIDE white cards (yellow #facc15 is unreadable there,
+     so we use the readable end of the same warm family) */
+  --card-accent:        #d97706;  /* amber-600 — accent text/links on white */
+  --card-accent-bright: #f59e0b;  /* amber-500 — score rings + axis bars */
+  --card-accent-deep:   #b45309;  /* amber-700 — hover */
+  --card-accent-tint:   #fffbeb;  /* amber-50  — top-match wash */
+
+  --font: 'Aeonik Regular', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { min-height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--bg-from) 0%, var(--bg-mid) 50%, var(--bg-to) 100%);
+  background-attachment: fixed;
+  color: var(--subtle);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent-soft); text-decoration: none; transition: color 0.15s ease; }
+a:hover { color: #ffffff; }
+
+.tabular, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Header + footer are inherited from the global canonical.cc stylesheet.
+   Just the mobile menu (the shared site script is home-page-specific). */
+.nav-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.nav-mobile[hidden] { display: none; }
+
+/* ── hero ────────────────────────────────────────────────────────────── */
+.hero {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 9rem 2rem 2.5rem;   /* top clears the fixed shared header */
+  text-align: center;
+}
+/* identical element + rule to canonical.cc/labs/power-law (span.lab-eyebrow):
+   font-size 0.75rem → 12px at the default 16px root. */
+.lab-eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 1.5rem;
+}
+.hero h1 {
+  font-size: clamp(2.6rem, 6vw, 4.25rem);
+  font-weight: 300;
+  line-height: 1.05;
+  color: #fff;
+  margin: 0 0 1.25rem;
+  letter-spacing: -0.01em;
+}
+.hero p {
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  color: var(--muted);
+  max-width: 600px;
+  margin: 0 auto;
+  font-weight: 300;
+}
+
+/* ── search box ──────────────────────────────────────────────────────── */
+.search {
+  max-width: 720px;
+  margin: 2.75rem auto 0;
+  padding: 0 2rem;
+}
+.search-row {
+  display: flex;
+  gap: 0.75rem;
+}
+.search input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.65rem;
+  padding: 1rem 1.15rem;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.search input::placeholder { color: var(--faint); }
+.search input:focus {
+  border-color: var(--active);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.14);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 0.65rem;
+  padding: 1rem 1.6rem;
+  background: #fff;
+  color: var(--bg-from);
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4); }
+.btn:disabled { cursor: progress; transform: none; box-shadow: none; }
+.btn-spinner {
+  display: none;
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 2px solid rgba(30, 58, 138, 0.25);
+  border-top-color: var(--bg-from);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.btn.loading .btn-spinner { display: inline-block; }
+.search-hint {
+  margin: 0.85rem 0.2rem 0;
+  font-size: 0.8rem;
+  color: var(--faint);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.search-hint .quota { color: var(--active); }
+
+/* ── stage / stepper ─────────────────────────────────────────────────── */
+.stage { max-width: 980px; margin: 3rem auto 0; padding: 0 2rem; scroll-margin-top: 6.5rem; }
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.4rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--pending-grey);
+  transition: color 0.3s ease;
+}
+.step .dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.74rem; font-variant-numeric: tabular-nums; line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--pending-grey);
+  background: transparent;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+/* active = warm yellow + glow + pulse */
+.step.active { color: var(--active); font-weight: 500; }
+.step.active .dot {
+  background: var(--active);
+  color: #1e293b;
+  border-color: var(--active);
+  animation: glow 1.4s ease-in-out infinite;
+}
+/* completed = grey, with a check */
+.step.done { color: var(--done-grey); }
+.step.done .dot {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: transparent;
+  color: var(--done-grey);
+}
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 9px var(--active-glow); }
+  50%      { box-shadow: 0 0 20px var(--active-glow); }
+}
+
+/* live status row: spinner + yellow message */
+.run-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 1.5rem;
+  margin-bottom: 2rem;
+}
+.run-status .status-text { color: var(--active); font-size: 1rem; }
+.spinner {
+  width: 16px; height: 16px; flex-shrink: 0;
+  border: 2px solid rgba(250, 204, 21, 0.25);
+  border-top-color: var(--active);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── cards ───────────────────────────────────────────────────────────── */
+.card {
+  background-color: var(--card-soft);
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  color: var(--card-soft-ink);
+  padding: 1.75rem;
+}
+
+/* source profile summary */
+.source-card { margin-bottom: 1.75rem; }
+.source-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.source-head > div:first-child { min-width: 0; flex: 1 1 12rem; }
+.source-name { font-size: 1.4rem; font-weight: 600; color: var(--card-ink); margin: 0; overflow-wrap: anywhere; }
+.source-sub { color: var(--card-muted); font-size: 0.9rem; margin: 0.15rem 0 0; overflow-wrap: anywhere; }
+.label {
+  font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--card-faint); margin: 1.25rem 0 0.6rem;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.chip {
+  background: var(--card-tint);
+  border: 1px solid var(--card-line);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--card-soft-ink);
+  /* trait text can be long ("founder who built real-time data infra after a
+     hardware engineering and crypto background") — let the chip multi-line
+     into a stadium shape instead of clipping/overflowing the card. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.chip .w { color: var(--card-accent); font-variant-numeric: tabular-nums; margin-left: 0.35rem; font-size: 0.72rem; font-weight: 600; }
+.arc {
+  margin: 0.4rem 0 0;
+  color: var(--card-soft-ink);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+/* profile / match link buttons (LinkedIn · X · source) */
+.links { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.link-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.78rem; font-weight: 500;
+  padding: 0.34rem 0.7rem; border-radius: 999px;
+  border: 1px solid var(--card-line); background: var(--card-tint);
+  color: var(--card-soft-ink); cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.link-btn:hover { border-color: var(--card-accent-bright); color: var(--card-accent); background: #fff; }
+.link-btn svg { width: 13px; height: 13px; }
+
+/* lightweight feedback affordance on every profile */
+.fb { margin-top: 0.25rem; }
+.fb-toggle {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 0.78rem; color: var(--card-muted);
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.fb-toggle:hover { color: var(--card-accent); }
+.fb-form { margin-top: 0.65rem; }
+.fb-form textarea {
+  width: 100%; resize: vertical; min-height: 58px;
+  font-family: var(--font); font-size: 0.85rem; color: var(--card-ink);
+  border: 1px solid var(--card-line); border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem; outline: none;
+}
+.fb-form textarea:focus { border-color: var(--card-accent-bright); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+.fb-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.5rem; }
+.fb-send {
+  background: var(--card-accent); color: #fff; border: none; cursor: pointer;
+  border-radius: 0.5rem; padding: 0.4rem 0.95rem; font: inherit; font-size: 0.8rem; font-weight: 600;
+  transition: background 0.15s ease;
+}
+.fb-send:hover { background: var(--card-accent-deep); }
+.fb-cancel { background: none; border: none; cursor: pointer; color: var(--card-muted); font: inherit; font-size: 0.8rem; }
+.fb-thanks { color: var(--positive); font-size: 0.82rem; font-weight: 500; }
+
+/* results grid */
+.results-title {
+  text-align: center; color: #fff; font-weight: 300;
+  font-size: 1.75rem; margin: 0.5rem 0 1.75rem;
+}
+.results { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+.match {
+  display: flex; flex-direction: column; gap: 0.85rem;
+  border: 1px solid var(--card-line);
+  animation: rise 0.5s ease both;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.match:hover { transform: translateY(-4px); box-shadow: 0 26px 32px -12px rgba(0, 0, 0, 0.32); }
+.match.top {
+  border-color: var(--card-accent-bright);
+  background: linear-gradient(150deg, #fff 0%, var(--card-accent-tint) 100%);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+.match-badge {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600;
+  color: var(--card-accent-deep); background: var(--card-accent-tint);
+  border: 1px solid var(--card-accent-bright); border-radius: 999px;
+  padding: 0.2rem 0.6rem; margin-bottom: -0.2rem;
+}
+.match-head { display: flex; align-items: center; justify-content: space-between; gap: 0.85rem; }
+.match-head > div:first-child { min-width: 0; flex: 1; }   /* let long names wrap instead of pushing the score ring off-screen */
+.match-name { font-size: 1.2rem; font-weight: 600; color: var(--card-ink); margin: 0; overflow-wrap: anywhere; }
+.match-role { color: var(--card-muted); font-size: 0.85rem; margin: 0.1rem 0 0; overflow-wrap: anywhere; }
+.match-arc, .match-note { overflow-wrap: anywhere; }
+
+/* circular score gauge */
+.score { position: relative; width: 58px; height: 58px; flex-shrink: 0; }
+.score svg { width: 58px; height: 58px; transform: rotate(-90deg); }
+.score .ring-bg { fill: none; stroke: var(--card-line); }
+.score .ring-fg { fill: none; stroke: var(--card-accent-bright); stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+.score .pct {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.92rem; font-weight: 600; color: var(--card-ink);
+  letter-spacing: -0.02em;
+}
+
+.match-arc { font-size: 0.9rem; color: var(--card-soft-ink); margin: 0; }
+
+.axes { display: flex; flex-direction: column; gap: 0.4rem; }
+.axis { font-size: 0.78rem; }
+.axis-top { display: flex; justify-content: space-between; color: var(--card-muted); margin-bottom: 0.2rem; }
+.axis-bar { height: 5px; background: var(--card-line); border-radius: 3px; overflow: hidden; }
+.axis-fill { height: 100%; background: var(--card-accent-bright); border-radius: 3px; transition: width 0.7s ease; }
+
+.match-note {
+  font-size: 0.85rem; color: var(--card-soft-ink);
+  border-top: 1px solid var(--card-line); padding-top: 0.85rem; margin: 0;
+}
+.match-note b { color: var(--card-ink); font-weight: 600; }
+
+/* notices */
+.notice {
+  max-width: 640px; margin: 2rem auto 0; padding: 1.1rem 1.35rem;
+  border-radius: 0.65rem; font-size: 0.92rem;
+  /* warm yellow/orange — matches the in-progress accent used across the labs */
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: var(--subtle);
+}
+.notice b { color: var(--active); }
+/* genuine failures stay red so they read as errors, not warnings */
+.notice.error { background: rgba(252, 165, 165, 0.08); border-color: rgba(252, 165, 165, 0.5); }
+.notice.error b { color: #fecaca; }
+
+/* methodology */
+.method { max-width: 760px; margin: 5rem auto 0; padding: 0 2rem; }
+.method h2 { color: #fff; font-weight: 300; font-size: 1.6rem; text-align: center; margin-bottom: 0.5rem; }
+.method-sub { text-align: center; color: var(--muted); margin: 0 0 2.25rem; font-weight: 300; }
+.method-steps { display: grid; gap: 1rem; }
+.method-step {
+  display: flex; gap: 1rem; align-items: flex-start;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.65rem; padding: 1.1rem 1.3rem;
+}
+.method-num {
+  font-family: var(--mono); color: var(--active); font-size: 0.85rem;
+  flex-shrink: 0; padding-top: 0.1rem; min-width: 1.5rem;
+}
+.method-step h3 { color: #fff; font-size: 0.98rem; font-weight: 500; margin: 0 0 0.2rem; }
+.method-step p { color: var(--muted); font-size: 0.88rem; margin: 0; }
+
+/* Give the inherited global footer breathing room from the methodology section. */
+.method { margin-bottom: 5rem; }
+
+/* ── anchor-mismatch warning + "wrong person?" affordance ─────────────── */
+/* Warm banner shown when the worker couldn't confirm the reconstructed
+   profile matches the input. Same yellow family as the in-progress accent
+   so it reads as "needs your attention" rather than "broken". */
+.anchor-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 0.65rem;
+  padding: 0.9rem 1.15rem;
+  margin-bottom: 1.25rem;
+  color: var(--subtle);
+  font-size: 0.92rem;
+  animation: rise 0.4s ease both;
+}
+.anchor-warning b { color: var(--active); margin-right: 0.4rem; }
+.anchor-warning-body { flex: 1; min-width: 0; }
+.anchor-warning-btn {
+  flex-shrink: 0;
+  background: var(--active);
+  color: #1e293b;
+  border: none;
+  cursor: pointer;
+  font: inherit; font-size: 0.85rem; font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.anchor-warning-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.3); }
+
+/* "Wrong person? Refine →" affordance sits below the source card, next to
+   the existing feedback toggle. Subtle text link — most users won't need it. */
+.source-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+.wrong-person {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 0.78rem; font-weight: 500;
+  color: var(--card-accent);
+  transition: color 0.15s ease;
+}
+.wrong-person:hover { color: var(--card-accent-deep); text-decoration: underline; }
+
+/* ── refine modal ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 1.25rem;
+  animation: fade 0.18s ease both;
+}
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.modal-card {
+  position: relative;
+  width: 100%; max-width: 480px;
+  background: var(--card-bg);
+  color: var(--card-soft-ink);
+  border-radius: 0.85rem;
+  box-shadow: 0 30px 50px -10px rgba(0, 0, 0, 0.5);
+  padding: 1.85rem 1.85rem 1.6rem;
+  animation: rise 0.25s ease both;
+}
+.modal-close {
+  position: absolute; top: 0.85rem; right: 0.95rem;
+  background: none; border: none; cursor: pointer;
+  font-size: 1rem; color: var(--card-faint);
+  padding: 0.25rem 0.45rem; line-height: 1;
+  transition: color 0.15s ease;
+}
+.modal-close:hover { color: var(--card-ink); }
+.modal-card h2 {
+  font-size: 1.2rem; font-weight: 600; color: var(--card-ink);
+  margin: 0 0 0.4rem;
+}
+.modal-sub {
+  margin: 0 0 1.25rem;
+  font-size: 0.88rem; color: var(--card-muted);
+}
+.modal-card label {
+  display: block; margin-bottom: 0.85rem;
+}
+.modal-card label span {
+  display: block;
+  font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--card-faint); font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+.modal-card input {
+  width: 100%;
+  font-family: var(--font); font-size: 0.92rem;
+  color: var(--card-ink);
+  background: var(--card-tint);
+  border: 1px solid var(--card-line);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.modal-card input:focus {
+  border-color: var(--card-accent-bright);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+.modal-card input::placeholder { color: var(--card-faint); }
+.modal-actions {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 0.6rem; margin-top: 0.5rem;
+}
+.modal-cancel {
+  background: none; border: none; cursor: pointer;
+  font: inherit; font-size: 0.88rem;
+  color: var(--card-muted);
+  padding: 0.55rem 0.85rem;
+}
+.modal-cancel:hover { color: var(--card-ink); }
+.modal-submit {
+  background: var(--card-accent);
+  color: #fff; border: none; cursor: pointer;
+  font: inherit; font-size: 0.88rem; font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.modal-submit:hover { background: var(--card-accent-deep); transform: translateY(-1px); }
+.modal-submit:disabled { cursor: progress; opacity: 0.6; transform: none; }
+
+/* namespaced so it never collides with the global Tailwind `.hidden` the
+   inherited canonical header relies on (class="hidden md:flex"). */
+.is-hidden { display: none !important; }
+
+/* ── mobile ──────────────────────────────────────────────────────────── */
+/* Two stops:
+   • ≤640px — most phones in portrait. Tighten paddings, stack the rows that
+     would otherwise truncate or push content off-screen.
+   • ≤400px — narrow phones / large text. Drop a few more sizes. */
+@media (max-width: 640px) {
+  .search-row { flex-direction: column; }
+  .hero { padding-top: 6.5rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+  .search { padding: 0 1.25rem; }
+  .stage { padding: 0 1rem; }
+  .method { padding: 0 1.25rem; }
+
+  /* Cards get a touch less padding so chips/arcs/match content has room. */
+  .card { padding: 1.25rem; border-radius: 0.7rem; }
+
+  /* Single-column match grid — minmax(300px, 1fr) was forcing horizontal
+     scroll on narrow screens. */
+  .results { grid-template-columns: 1fr; gap: 1.1rem; }
+
+  /* Stepper sits more compactly so it fits without a second row wrapping
+     mid-label. */
+  .stepper { gap: 0.4rem 0.85rem; }
+  .step { font-size: 0.78rem; }
+  .step .dot { width: 22px; height: 22px; font-size: 0.7rem; }
+
+  /* Hint row stacks so the quota count doesn't fight the description text. */
+  .search-hint { flex-direction: column; gap: 0.25rem; }
+
+  /* Anchor-warning banner: stack the message above a full-width refine button. */
+  .anchor-warning { flex-direction: column; align-items: stretch; gap: 0.7rem; }
+  .anchor-warning-btn { align-self: flex-start; }
+
+  /* Source-card bottom row: feedback affordance + 'wrong person?' stack
+     instead of competing for the same line. */
+  .source-actions { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+
+  /* Match-head: name+role on one line stacked above the score ring rather
+     than fighting it for width. */
+  .match-head { flex-wrap: wrap; }
+
+  /* Modal: trim padding so the form fits comfortably with the on-screen
+     keyboard open. */
+  .modal-overlay { padding: 0.75rem; }
+  .modal-card { padding: 1.4rem 1.4rem 1.25rem; border-radius: 0.7rem; }
+  .modal-card h2 { font-size: 1.1rem; }
+
+  /* Methodology cards — same treatment as the main card padding. */
+  .method-step { padding: 0.9rem 1rem; }
+}
+
+@media (max-width: 400px) {
+  .hero { padding-top: 5.5rem; }
+  .hero h1 { font-size: 2.2rem; }
+  .hero p { font-size: 1rem; }
+  .card { padding: 1rem; }
+  .source-name { font-size: 1.2rem; }
+  .match-name { font-size: 1.1rem; }
+  .score, .score svg { width: 50px; height: 50px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   AEO READINESS — lab-specific components.
+   Everything above this line is inherited verbatim from labs/lookalike so
+   the two labs are visually identical where their roles match. Only the
+   pieces with no Lookalike analogue are defined below.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Section labels between cards (white-on-blue, above the stage cards). */
+.section-label {
+  font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 2rem 0 0.85rem;
+}
+
+/* ── score card ──────────────────────────────────────────────────────── */
+/* Sits in the slot Lookalike gives .source-card. */
+.score-card { margin-bottom: 1.75rem; }
+.score-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap;
+}
+.score-id { min-width: 0; flex: 1 1 14rem; }
+.score-big { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.score-ring { position: relative; width: 96px; height: 96px; }
+.score-ring svg { width: 96px; height: 96px; transform: rotate(-90deg); }
+.score-ring .ring-bg { fill: none; stroke: var(--card-line); }
+.score-ring .ring-fg {
+  fill: none; stroke-linecap: round;
+  transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.score-num {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 1.9rem; font-weight: 600;
+  color: var(--card-ink); letter-spacing: -0.03em;
+}
+.grade-band {
+  font-size: 0.62rem; letter-spacing: 0.14em; font-weight: 700;
+  border-radius: 999px; padding: 0.22rem 0.7rem;
+}
+/* Grade colours: A/B use the readable green, C/D the warm amber family so
+   they read as "needs work", never as a hostile red. */
+.grade-a  { stroke: var(--positive); }
+.grade-b  { stroke: var(--positive); }
+.grade-c  { stroke: var(--card-accent-bright); }
+.grade-d  { stroke: var(--card-accent-deep); }
+.grade-a-bg, .grade-b-bg { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.grade-c-bg { background: var(--card-accent-tint); color: var(--card-accent-deep); border: 1px solid var(--card-accent-bright); }
+.grade-d-bg { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+/* pillar bars — same visual language as Lookalike's .axis */
+.pillars { display: flex; flex-direction: column; gap: 0.7rem; }
+.pillar .axis-top { font-size: 0.82rem; }
+.pillar .of { color: var(--card-faint); font-size: 0.75rem; }
+.pillar .axis-fill.low { background: var(--card-accent-deep); }
+
+/* ── engine grid ─────────────────────────────────────────────────────── */
+.engines {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem;
+}
+.engine {
+  background: var(--card-soft); border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  padding: 1.05rem 1.1rem;
+  display: flex; flex-direction: column; gap: 0.4rem;
+}
+.engine-name { font-size: 0.95rem; font-weight: 600; color: var(--card-ink); }
+.engine-band {
+  align-self: flex-start;
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+  border-radius: 0.35rem; padding: 0.1rem 0.45rem; margin-bottom: 0.15rem;
+}
+.band-a, .band-b { background: #ecfdf5; color: #047857; }
+.band-c { background: var(--card-accent-tint); color: var(--card-accent-deep); }
+.band-d { background: #fef2f2; color: #b91c1c; }
+.engine-stat {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 0.78rem; color: var(--card-muted);
+}
+.engine-stat b { color: var(--card-ink); font-weight: 600; }
+
+/* The honesty note under the engine grid (§6 of the PRD). Deliberately
+   plain and unmissable rather than tucked into a footnote. */
+.disclosure {
+  margin: 0.9rem 0.15rem 0;
+  font-size: 0.78rem; line-height: 1.55;
+  color: var(--faint);
+}
+
+/* ── query chips ─────────────────────────────────────────────────────── */
+.queries-card .chip { font-size: 0.78rem; }
+.chip i {
+  font-style: normal; font-family: var(--mono); font-size: 0.7rem;
+  font-weight: 600; margin-left: 0.4rem;
+}
+.chip.win  { border-color: #a7f3d0; background: #f0fdf4; }
+.chip.win i  { color: #047857; }
+.chip.lose { border-color: #fecaca; background: #fef2f2; }
+.chip.lose i { color: #b91c1c; }
+
+/* ── fix cards ───────────────────────────────────────────────────────── */
+/* Single column, not Lookalike's 2-up grid: these carry code blocks and
+   need the full width to stay readable without horizontal scroll. */
+.fixes { display: flex; flex-direction: column; gap: 1.25rem; }
+.fix {
+  border: 1px solid var(--card-line);
+  border-left-width: 4px;
+  animation: rise 0.5s ease both;
+}
+.sev-critical { border-left-color: #dc2626; }
+.sev-high     { border-left-color: var(--card-accent-bright); }
+.sev-medium   { border-left-color: #0284c7; }
+.sev-ahead    { border-left-color: #7c3aed; }
+
+.fix-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.7rem;
+}
+.fix-badge {
+  font-size: 0.62rem; letter-spacing: 0.13em; text-transform: uppercase;
+  font-weight: 700; border-radius: 999px; padding: 0.22rem 0.65rem;
+}
+.sev-critical .fix-badge { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.sev-high .fix-badge     { background: var(--card-accent-tint); color: var(--card-accent-deep); border: 1px solid var(--card-accent-bright); }
+.sev-medium .fix-badge   { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+.sev-ahead .fix-badge    { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+
+.fix-where {
+  font-family: var(--mono); font-size: 0.75rem; color: var(--card-faint);
+  overflow-wrap: anywhere;
+}
+.fix-title {
+  font-size: 1.08rem; font-weight: 600; color: var(--card-ink);
+  margin: 0 0 0.5rem; line-height: 1.35;
+}
+.fix-why {
+  font-size: 0.89rem; color: var(--card-soft-ink); margin: 0 0 1rem;
+}
+.fix-why b { color: var(--card-ink); font-weight: 600; }
+.fix-why code, .fix-where-to code {
+  font-family: var(--mono); font-size: 0.83em;
+  background: var(--card-tint); border: 1px solid var(--card-line);
+  border-radius: 0.28rem; padding: 0.05rem 0.3rem;
+  overflow-wrap: anywhere;
+}
+.fix-where-to {
+  font-size: 0.8rem; color: var(--card-muted);
+  margin: 0.85rem 0 0; padding-top: 0.75rem;
+  border-top: 1px solid var(--card-line);
+}
+.fix-where-to b { color: var(--card-accent-deep); }
+
+/* ── the artifact block — the thing people copy ──────────────────────── */
+.artifact {
+  border: 1px solid var(--card-line); border-radius: 0.6rem;
+  overflow: hidden; background: #0f172a;
+}
+.artifact-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; padding: 0.5rem 0.5rem 0.5rem 0.85rem;
+  background: #1e293b; border-bottom: 1px solid #334155;
+}
+.artifact-name {
+  font-family: var(--mono); font-size: 0.72rem;
+  color: #94a3b8; overflow-wrap: anywhere;
+}
+.copy-btn {
+  flex-shrink: 0; cursor: pointer;
+  font-family: var(--font); font-size: 0.72rem; font-weight: 600;
+  color: #e2e8f0; background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.4rem; padding: 0.28rem 0.7rem;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.copy-btn:hover { background: rgba(255, 255, 255, 0.18); }
+.copy-btn.copied { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.copy-btn.inline {
+  margin-top: 0.6rem; color: var(--card-soft-ink);
+  background: #fff; border-color: var(--card-line);
+}
+.copy-btn.inline:hover { border-color: var(--card-accent-bright); color: var(--card-accent); }
+
+.artifact pre {
+  margin: 0; padding: 0.9rem 1rem;
+  overflow-x: auto;                 /* code scrolls inside its own box */
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.6;
+  color: #e2e8f0;
+}
+.artifact code { font-family: inherit; white-space: pre; }
+.artifact .del { color: #fca5a5; display: block; }
+.artifact .add { color: #86efac; display: block; }
+
+/* ── before/after rewrite ────────────────────────────────────────────── */
+.rewrite { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+.rewrite-col {
+  border: 1px solid var(--card-line); border-radius: 0.6rem;
+  padding: 0.85rem 0.95rem; background: var(--card-tint);
+}
+.rewrite-col.after { border-color: #a7f3d0; background: #f0fdf4; }
+.rewrite-tag {
+  display: block; font-size: 0.62rem; letter-spacing: 0.13em;
+  text-transform: uppercase; font-weight: 700;
+  color: var(--card-faint); margin-bottom: 0.4rem;
+}
+.rewrite-col.after .rewrite-tag { color: #047857; }
+.rewrite-col p { margin: 0; font-size: 0.85rem; color: var(--card-soft-ink); }
+
+/* ── also-cited ──────────────────────────────────────────────────────── */
+.also-cited { margin-top: 1.75rem; }
+.also-cited .label { margin-top: 0; }
+.also-body { font-size: 0.87rem; color: var(--card-soft-ink); margin: 0 0 0.9rem; }
+.also-cited .chip i { color: var(--card-muted); font-weight: 500; }
+
+/* ── mobile ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .score-head { flex-direction: column-reverse; align-items: flex-start; gap: 1.1rem; }
+  /* flex-basis maps to HEIGHT once the container is a column — the 14rem basis
+     that sizes the id block on desktop would otherwise reserve 224px of dead
+     vertical space above the pillar bars. */
+  .score-id { flex: 0 0 auto; }
+  .engines { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  /* Before/after stacks — two 1fr columns of prose is unreadable on a phone. */
+  .rewrite { grid-template-columns: 1fr; }
+  .artifact pre { font-size: 0.72rem; padding: 0.75rem 0.85rem; }
+  .fix { border-left-width: 3px; }
+  .section-label { margin-top: 1.5rem; }
+}
+
+@media (max-width: 400px) {
+  .score-ring, .score-ring svg { width: 80px; height: 80px; }
+  .score-num { font-size: 1.55rem; }
+  .fix-title { font-size: 1rem; }
+}
