@@ -187,3 +187,26 @@ export function definitionalOpener(html, brandHint) {
   const rx = new RegExp(`\\b${brand}\\b[^.]{0,40}?\\b(is|are|provides|helps|builds|makes)\\b`, "i");
   return { opener: words, definitional: rx.test(words) };
 }
+
+/** Social profile URLs found anywhere on the page — the `sameAs` array for
+ *  Organization schema. Grounded in real links, never invented. */
+export function extractSocialLinks(html, origin) {
+  const PATTERNS = [
+    /https?:\/\/(?:[a-z]+\.)?linkedin\.com\/(?:company|in)\/[A-Za-z0-9_-]+/gi,
+    /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/[A-Za-z0-9_]+/gi,
+    /https?:\/\/(?:www\.)?github\.com\/[A-Za-z0-9_-]+/gi,
+    /https?:\/\/(?:www\.)?youtube\.com\/(?:@[A-Za-z0-9_-]+|c\/[A-Za-z0-9_-]+)/gi,
+    /https?:\/\/(?:www\.)?crunchbase\.com\/organization\/[A-Za-z0-9_-]+/gi,
+  ];
+  const out = new Set();
+  const src = String(html || "");
+  for (const rx of PATTERNS) {
+    for (const m of src.match(rx) || []) {
+      // Skip share/intent links — they point at the visitor's own profile flow,
+      // not the company's.
+      if (/\/(intent|share|sharer)\b/i.test(m)) continue;
+      out.add(m.replace(/[/?#]+$/, ""));
+    }
+  }
+  return [...out];
+}

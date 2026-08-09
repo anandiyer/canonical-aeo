@@ -12,6 +12,7 @@
 import { crawlSite, normalizeInput } from "./crawl.js";
 import { runDeterministicAudit } from "./audit.js";
 import { scoreReport, rankFixes } from "./score.js";
+import { attachArtifacts } from "./fixes.js";
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days (PRD §9)
 
@@ -154,7 +155,7 @@ async function runPipeline(send, input, env, quota) {
 
   // 6 — fixes: ranked now, artifact generation lands in milestone 5.
   await stage("fixes", "active");
-  const fixes = rankFixes(pillars);
+  const fixes = attachArtifacts(rankFixes(pillars), crawl);
   await send({ type: "fixes", fixes });
   await stage("fixes", "done");
 

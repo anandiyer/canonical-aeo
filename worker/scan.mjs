@@ -9,6 +9,7 @@
 import { crawlSite } from "./src/crawl.js";
 import { runDeterministicAudit } from "./src/audit.js";
 import { scoreReport, rankFixes } from "./src/score.js";
+import { attachArtifacts } from "./src/fixes.js";
 
 const target = process.argv[2];
 const asJson = process.argv.includes("--json");
@@ -30,7 +31,7 @@ const MARK = { pass: C.green("✔"), partial: C.yellow("◐"), fail: C.red("✖"
 const crawl = await crawlSite(target, (m) => !asJson && console.error(C.dim("  " + m)));
 const pillars = runDeterministicAudit(crawl);
 const report = scoreReport(pillars);
-const fixes = rankFixes(pillars);
+const fixes = attachArtifacts(rankFixes(pillars), crawl);
 
 if (asJson) {
   console.log(JSON.stringify({ site: crawl.hostname, report, fixes, pillars }, null, 2));
@@ -76,4 +77,24 @@ if (bots.evidence.blockedAnswer.length) {
 }
 if (bots.evidence.blockedTraining.length) {
   console.log(C.dim(`  Training crawlers blocked (fine, deliberate): ${bots.evidence.blockedTraining.join(", ")}`));
+}
+
+// Print the generated artifacts — the whole point of the tool.
+if (process.argv.includes("--fixes")) {
+  for (const f of fixes) {
+    if (!f.artifact) {
+      if (f.pending) console.log(`\n${C.dim("· pending (needs model): " + f.willProduce)}`);
+      continue;
+    }
+    const a = f.artifact;
+    console.log(`\n${C.bold("── " + a.title)}`);
+    if (a.kind === "diff") {
+      if (a.removed) console.log(a.removed.split("\n").map((l) => C.red("- " + l)).join("\n"));
+      console.log(a.added.split("\n").map((l) => C.green("+ " + l)).join("\n"));
+    } else {
+      console.log(a.content);
+    }
+    if (a.note) console.log(C.dim("  " + a.note));
+    for (const ph of a.placeholders || []) console.log(C.yellow(`  ⚠ ${ph.token} — ${ph.why}`));
+  }
 }
