@@ -194,7 +194,13 @@ async function runPipeline(send, input, env, quota) {
     await stage("queries", "active");
     await status("Working out what your buyers would ask…");
     try {
-      queryPlan = await generateQueries(crawl, env);
+      // Size the query set to what the platform will actually allow, rather
+      // than generating 12 and throwing half away. Cloudflare caps subrequests
+      // per invocation (50 free / 1000 paid); the crawl has already spent some.
+      const cap = Number(env.SUBREQUEST_BUDGET || 45);
+      const spare = Math.max(4, cap - (crawl.subrequests || 0) - 2);
+      const count = Math.max(ENGINES.length, Math.floor(spare / ENGINES.length));
+      queryPlan = await generateQueries(crawl, env, { count });
     } catch (err) {
       const message = String(err?.message || err);
       console.error("query generation failed:", message);
@@ -224,8 +230,7 @@ async function runPipeline(send, input, env, quota) {
       // crawl has already spent some; reserve 2 for sentiment + headroom and
       // divide the rest across engines. Before this, exceeding the cap killed
       // whole engines mid-run and they reported as "never mentions you".
-      const cap = Number(env.SUBREQUEST_BUDGET || 45);
-      const remaining = Math.max(4, cap - (crawl.subrequests || 0) - 2);
+      const remaining = Math.max(4, Number(env.SUBREQUEST_BUDGET || 45) - (crawl.subrequests || 0) - 2);
       const engineRun = await runEngines(
         queryPlan, crawl, env,
         (engine) => status(`${engine.label}: ${engine.mentioned}/${engine.answered} mentions`),

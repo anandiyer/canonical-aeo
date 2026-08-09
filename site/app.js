@@ -17,7 +17,7 @@ const STEPS = [
   ["fetch", "Fetching site"],
   ["audit", "Auditing structure"],
   ["queries", "Generating queries"],
-  ["engines", "Asking 5 engines"],
+  ["engines", "Asking 4 engines"],
   ["score", "Scoring"],
   ["fixes", "Writing fixes"],
 ];
@@ -42,6 +42,7 @@ const esc = (s) =>
 let running = false;
 let inflight = null;
 let lastInput = "";
+let lastQueries = null;
 
 /* ── stepper ──────────────────────────────────────────────────────────── */
 
@@ -122,6 +123,105 @@ function renderScore(ev) {
       ` — those checks are still being built, so they're excluded from the total rather than counted as zero.`;
     $("not-measured").classList.remove("is-hidden");
   }
+}
+
+/* ── engines ──────────────────────────────────────────────────────────── */
+
+function renderEngines(ev) {
+  const wrap = $("engines");
+  wrap.innerHTML = "";
+  $("engines-label").classList.remove("is-hidden");
+
+  for (const e of ev.engines) {
+    const card = el("div", "engine");
+    card.appendChild(el("div", "engine-name", esc(e.label)));
+    card.appendChild(el("span", `engine-band band-${e.band.toLowerCase()}`, e.band));
+    card.appendChild(
+      el("div", "engine-stat", `<span>Mentioned</span><b class="tabular">${e.mentioned}/${e.answered}</b>`)
+    );
+    card.appendChild(
+      el("div", "engine-stat", `<span>Cited w/ link</span><b class="tabular">${e.cited}/${e.answered}</b>`)
+    );
+    wrap.appendChild(card);
+  }
+
+  // An engine we couldn't reach is shown as unreachable, never as a zero — a
+  // blank column would read as "this engine never mentions you", which is a
+  // claim we haven't earned.
+  for (const u of ev.unavailable || []) {
+    const card = el("div", "engine engine-out");
+    card.appendChild(el("div", "engine-name", esc(u.label)));
+    card.appendChild(el("span", "engine-band band-out", "—"));
+    card.appendChild(el("div", "engine-stat out", "<span>Not measured</span>"));
+    card.title = u.error || "";
+    wrap.appendChild(card);
+  }
+
+  const notes = [
+    "Measured through each engine's own API using its native search. Not identical to what a signed-in human sees — no personalization, no chat memory. Directionally right, not a guarantee.",
+  ];
+  if (ev.sentimentMeasured === false) {
+    notes.push("Sentiment couldn't be classified this run, so those 3 points are excluded from the total rather than counted against you.");
+  }
+  if ((ev.unavailable || []).length) {
+    notes.push(
+      `${ev.unavailable.map((u) => esc(u.label)).join(" and ")} didn't respond and ${ev.unavailable.length === 1 ? "is" : "are"} excluded from the score entirely.`
+    );
+  }
+  $("disclosure").innerHTML = notes.join(" ");
+  $("disclosure").classList.remove("is-hidden");
+}
+
+/* ── query chips ──────────────────────────────────────────────────────── */
+
+function renderQueries(ev, perQuery) {
+  const wrap = $("query-chips");
+  wrap.innerHTML = "";
+  const rows = perQuery && perQuery.length
+    ? perQuery
+    : ev.queries.map((q) => ({ q: q.q, shape: q.shape }));
+
+  for (const row of rows) {
+    // Before the engines report back, chips are neutral. Afterwards they carry
+    // the win/loss that makes them worth reading.
+    let cls = "chip", tag = "";
+    if (row.answeredBy != null) {
+      // Three states, not two: being named by 1 engine of 4 is a real signal
+      // but it is not a win, and colouring it the same green as 4/4 would
+      // flatter the result.
+      const ratio = row.answeredBy ? row.mentionedBy / row.answeredBy : 0;
+      const state = ratio >= 0.5 ? "win" : ratio > 0 ? "partial" : "lose";
+      const mark = state === "win" ? "✓" : state === "partial" ? "~" : "✕";
+      cls += " " + state;
+      tag = `<i>${mark} ${row.mentionedBy}/${row.answeredBy}</i>`;
+    }
+    wrap.appendChild(el("span", cls, esc(row.q) + tag));
+  }
+
+  $("queries-label").textContent =
+    `The ${rows.length} buyer question${rows.length === 1 ? "" : "s"} we asked`;
+  $("queries-label").classList.remove("is-hidden");
+  $("queries-card").classList.remove("is-hidden");
+
+  $("queries-note").innerHTML = perQuery && perQuery.length
+    ? "Counts are how many engines named you. Only the <em>alternatives</em> and <em>reviews</em> questions mention your brand — the rest test whether you surface when nobody asked for you."
+    : "Generated from your site. Only the <em>alternatives</em> and <em>reviews</em> questions name your brand on purpose.";
+}
+
+/* ── also cited ───────────────────────────────────────────────────────── */
+
+function renderAlsoCited(brands) {
+  if (!brands || !brands.length) return;
+  const wrap = $("also-chips");
+  wrap.innerHTML = "";
+  for (const b of brands) {
+    wrap.appendChild(
+      el("span", "chip", `${esc(b.host)}<i>${b.queryCount} ${b.queryCount === 1 ? "query" : "queries"}</i>`)
+    );
+  }
+  $("also-body").textContent =
+    "On the questions where you weren't cited, these domains were. Not a competitive ranking — just who currently owns the answers you're missing.";
+  $("also-cited").classList.remove("is-hidden");
 }
 
 /* ── fixes ────────────────────────────────────────────────────────────── */
@@ -271,6 +371,19 @@ function explain(f) {
 
 /* ── warnings + notices ───────────────────────────────────────────────── */
 
+/** Non-fatal notes from the pipeline (budget caps, partial stages). */
+function addWarning(msg) {
+  if (!msg) return;
+  const box = $("audit-warning");
+  const list = $("audit-warning-msg");
+  $("audit-warning-title").textContent = "Heads up.";
+  // Appended, not replaced: a run can hit more than one of these and the second
+  // one silently overwriting the first is how a caveat goes missing.
+  const line = el("span", "warn-line", esc(msg));
+  list.appendChild(line);
+  box.classList.remove("is-hidden");
+}
+
 function showWarning(title, msg) {
   $("audit-warning-title").textContent = title;
   $("audit-warning-msg").textContent = msg;
@@ -320,6 +433,22 @@ function handleEvent(ev) {
         }
       }
       break;
+    case "queries":
+      lastQueries = ev;
+      renderQueries(ev, null);
+      break;
+    case "engines":
+      renderEngines(ev);
+      // The per-query breakdown only exists once the engines have answered, so
+      // the chips are re-rendered here with their win/loss markers.
+      if (lastQueries) renderQueries(lastQueries, ev.perQuery);
+      break;
+    case "also_cited":
+      renderAlsoCited(ev.brands);
+      break;
+    case "warn":
+      addWarning(ev.message);
+      break;
     case "score":
       renderScore(ev);
       $("rescan").classList.remove("is-hidden");
@@ -358,6 +487,12 @@ async function run(input, opts = {}) {
   $("fixes-title").classList.add("is-hidden");
   $("fixes").innerHTML = "";
   $("not-measured").classList.add("is-hidden");
+  $("audit-warning-msg").innerHTML = "";
+  lastQueries = null;
+  for (const id of ["engines-label", "disclosure", "queries-label", "queries-card", "also-cited"]) {
+    $(id).classList.add("is-hidden");
+  }
+  $("engines").innerHTML = "";
   $("stage").classList.remove("is-hidden");
   $("spinner").style.display = "";
   buildStepper();

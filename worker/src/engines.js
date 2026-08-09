@@ -148,7 +148,23 @@ export async function runEngines(queryPlan, crawl, env, onProgress = () => {}, o
 
   // Stable display order regardless of which engine finished first.
   results.sort((a, b) => ENGINES.findIndex((e) => e.id === a.id) - ENGINES.findIndex((e) => e.id === b.id));
-  return { engines: results, cost: totalCost, queriesAsked: queries.length, queriesTrimmed: trimmed };
+
+  // Per-query view: how many engines named you on each question. This is what
+  // makes the query chips actionable — "you lose every pricing question" is a
+  // far more useful finding than an aggregate percentage.
+  const perQuery = queries.map((q) => {
+    let mentionedBy = 0, citedBy = 0, answeredBy = 0;
+    for (const engine of results) {
+      const a = (engine.answers || []).find((x) => x.query === q.q);
+      if (!a) continue;
+      answeredBy++;
+      if (a.mentioned) mentionedBy++;
+      if (a.cited) citedBy++;
+    }
+    return { q: q.q, shape: q.shape, mentionedBy, citedBy, answeredBy };
+  });
+
+  return { engines: results, cost: totalCost, queriesAsked: queries.length, queriesTrimmed: trimmed, perQuery };
 }
 
 /** Brands cited on queries where the user's own site wasn't. */

@@ -169,6 +169,8 @@ export async function scoreVisibility(engineRun, queryPlan, env) {
       shareOfVoice,
       sentiment: sentiment.label,
       sentimentMeasured: sentiment.score != null,
+      perQuery: engineRun.perQuery || [],
+      queriesAsked: engineRun.queriesAsked,
     },
     cost: (engineRun.cost || 0) + (sentiment.cost || 0),
   };

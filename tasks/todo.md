@@ -84,7 +84,8 @@ allowing `OAI-SearchBot` (OpenAI licensing deals). Parser resolves correctly.
 - [x] Pillar E: mention rate, citation rate, share of voice, sentiment
 - [x] `also_cited` event
 - [x] Deployed to aeo-api.canonical.cc and verified live
-- [ ] Frontend: engine grid, query chips, also-cited (design mock still shows 5)
+- [x] Frontend: engine grid (4 columns), query chips with per-question win/loss,
+      also-cited card, disclosure note, unavailable-engine cards, budget warnings
 
 ### Engine findings — all verified against the live API, none documented
 
@@ -143,12 +144,34 @@ SCORE 55/100 grade C (raw 41/75) omitted=['content']
 - Global spend cap `MAX_PAID_RUNS_PER_DAY = 50` (~$75/day worst case). Past it,
   scans still run and return the full free deterministic audit.
 
-### Open cost/plan decision
+### Plan decision — settled: staying on the FREE Workers plan
 
-`SUBREQUEST_BUDGET = 45` fits the **free** Workers plan, which limits us to
-**6 of 12 questions**. Workers Paid ($5/mo) raises the ceiling to 1000
-subrequests — set `SUBREQUEST_BUDGET = 950` for the full 12 and roughly double
-the statistical confidence, at ~$1.50/scan instead of ~$0.75.
+`SUBREQUEST_BUDGET = 45`. The query set is now **sized to the budget before
+generation** rather than generating 12 and discarding half, so a free-plan run
+asks exactly 6 balanced questions and shows no confusing "asked 6 of 12"
+warning. ~$0.75/scan.
+
+To upgrade later: Workers Paid ($5/mo) → set `SUBREQUEST_BUDGET = 950`. The
+apportionment scales automatically; no other change needed.
+
+### Frontend wiring notes
+
+- Query chips are three-state, not two. Named by 1 engine of 4 renders amber,
+  not green — colouring a 1/4 the same as a 4/4 would flatter a weak result.
+- An engine we couldn't reach renders as a visible "not measured" card with a
+  dashed band, never as a blank or zero column. A missing column would read as
+  "this engine never mentions you", which is a claim we haven't earned.
+- Pipeline warnings append rather than replace; a run can hit more than one and
+  the second silently overwriting the first is how a caveat goes missing.
+- `devserver.mjs` now loads `.dev.vars` + wrangler `[vars]`. Before this it ran
+  with no API key and the paid stages reported "skipped" — indistinguishable
+  from a deliberate config choice.
+
+## Milestone 7 — ship (remaining)
+
+- [ ] Add to `labs/index.html` grid + LABS dropdown in every other lab page
+- [ ] Fix canonical.cc's own findings (sitemap, llms.txt)
+- [ ] Publish `anandiyer.github.io/labs/aeo/` (site repo push = go-live)
 
 ## Milestone 4 — Pillar C
 

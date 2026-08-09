@@ -20,6 +20,34 @@ export const QUERY_SHAPES = [
 
 export const QUERY_COUNT = QUERY_SHAPES.reduce((n, s) => n + s.n, 0); // 12
 
+/**
+ * Scale the shape mix down to `total` while keeping the balance.
+ *
+ * We ask for exactly what the platform budget allows rather than generating 12
+ * and discarding half: a discarded query is wasted spend, and "we asked 6 of
+ * 12" is a confusing thing to show a user on every single run.
+ * Largest-remainder apportionment, so the totals always add up exactly.
+ */
+export function shapePlan(total = QUERY_COUNT) {
+  const want = Math.max(QUERY_SHAPES.length, Math.min(QUERY_COUNT, total));
+  const exact = QUERY_SHAPES.map((s) => ({ ...s, raw: (s.n / QUERY_COUNT) * want }));
+  const plan = exact.map((s) => ({ ...s, n: Math.max(1, Math.floor(s.raw)) }));
+
+  let diff = want - plan.reduce((a, s) => a + s.n, 0);
+  // Hand out (or claw back) the remainder by largest fractional part.
+  const order = [...plan.keys()].sort(
+    (a, b) => (exact[b].raw % 1) - (exact[a].raw % 1)
+  );
+  let i = 0;
+  while (diff !== 0 && i < order.length * 3) {
+    const k = order[i % order.length];
+    if (diff > 0) { plan[k].n++; diff--; }
+    else if (plan[k].n > 1) { plan[k].n--; diff++; }
+    i++;
+  }
+  return plan;
+}
+
 /** Compact, token-bounded digest of the crawl for the model to read. */
 function siteDigest(crawl) {
   const meta = extractMeta(crawl.home?.html || "");
@@ -40,7 +68,7 @@ function siteDigest(crawl) {
   ].filter(Boolean).join("\n");
 }
 
-const PROMPT = (digest) => `You are analysing a company's website to work out what its buyers would ask an AI assistant.
+const PROMPT = (digest, plan, total) => `You are analysing a company's website to work out what its buyers would ask an AI assistant.
 
 ${digest}
 
@@ -60,8 +88,8 @@ Return JSON exactly like:
   ]
 }
 
-Produce exactly ${QUERY_COUNT} queries, distributed as:
-${QUERY_SHAPES.map((s) => `- ${s.n} × "${s.id}": ${s.hint}`).join("\n")}
+Produce exactly ${total} queries, distributed as:
+${plan.map((s) => `- ${s.n} × "${s.id}": ${s.hint}`).join("\n")}
 
 Rules:
 - Write queries the way a real buyer types them into ChatGPT. No marketing language.
@@ -78,14 +106,17 @@ Rules:
  * null is indistinguishable from "no key configured", which is exactly how a
  * broken stage ends up looking like a deliberately skipped one.
  */
-export async function generateQueries(crawl, env) {
+export async function generateQueries(crawl, env, opts = {}) {
   const key = env.OPENROUTER_API_KEY;
   if (!key) throw new Error("No OPENROUTER_API_KEY configured");
+
+  const total = Math.max(QUERY_SHAPES.length, Math.min(QUERY_COUNT, opts.count || QUERY_COUNT));
+  const plan = shapePlan(total);
 
   const model = env.MODEL_CHEAP || "google/gemini-3.5-flash";
   const { data, text, cost } = await completeJson(key, {
     model,
-    prompt: PROMPT(siteDigest(crawl)),
+    prompt: PROMPT(siteDigest(crawl), plan, total),
     // Reasoning tokens count against this and scale with prompt size. 2000 was
     // enough locally and not in production, where the digest runs longer.
     maxTokens: 6000,
@@ -104,7 +135,7 @@ export async function generateQueries(crawl, env) {
     .map((q) => (typeof q === "string" ? { shape: "unknown", q } : q))
     .filter((q) => q && typeof q.q === "string" && q.q.trim().length > 5)
     .map((q) => ({ shape: String(q.shape || "unknown"), q: q.q.trim() }))
-    .slice(0, QUERY_COUNT);
+    .slice(0, total);
 
   if (!queries.length) return null;
 

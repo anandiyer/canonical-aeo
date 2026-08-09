@@ -11,7 +11,43 @@
  */
 
 import http from "node:http";
+import fs from "node:fs";
 import worker from "./src/worker.js";
+
+/* Load .dev.vars and the [vars] block from wrangler.toml, the same way
+   `wrangler dev` does. Without this the dev server silently runs with no API
+   key, and the paid stages report as "skipped" — which looks identical to a
+   deliberate configuration choice. */
+function loadEnvFile(path) {
+  if (!fs.existsSync(path)) return {};
+  return Object.fromEntries(
+    fs.readFileSync(path, "utf8")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#") && l.includes("="))
+      .map((l) => {
+        const i = l.indexOf("=");
+        return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")];
+      })
+  );
+}
+
+function loadWranglerVars(path) {
+  if (!fs.existsSync(path)) return {};
+  const text = fs.readFileSync(path, "utf8");
+  const block = text.split(/^\[vars\]$/m)[1];
+  if (!block) return {};
+  return loadEnvFile.call(null, "/dev/null") && Object.fromEntries(
+    block.split(/^\[/m)[0]
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#") && l.includes("="))
+      .map((l) => {
+        const i = l.indexOf("=");
+        return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")];
+      })
+  );
+}
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -28,12 +64,21 @@ const memoryKV = () => {
   };
 };
 
+// wrangler.toml [vars] first, then .dev.vars overrides, then local conveniences.
 const env = {
+  ...loadWranglerVars(new URL("./wrangler.toml", import.meta.url).pathname),
+  ...loadEnvFile(new URL("./.dev.vars", import.meta.url).pathname),
   ALLOWED_ORIGIN: "*",
   DAILY_LIMIT: process.env.DAILY_LIMIT || "1000",
   RL: memoryKV(),
   CACHE: memoryKV(),
 };
+
+console.log(
+  "  models:", env.MODEL_CHEAP || "(default)",
+  "| engines:", env.OPENROUTER_API_KEY ? "enabled" : "DISABLED (no OPENROUTER_API_KEY)",
+  "| subrequest budget:", env.SUBREQUEST_BUDGET || 45
+);
 
 const server = http.createServer(async (req, res) => {
   const url = `http://${req.headers.host || "localhost"}${req.url}`;

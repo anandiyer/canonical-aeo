@@ -897,3 +897,32 @@ a:hover { color: #ffffff; }
   color: var(--card-muted);
 }
 .fix-pending b { color: var(--card-soft-ink); font-weight: 600; }
+
+/* ── engines that didn't respond ─────────────────────────────────────── */
+/* Deliberately legible rather than hidden: a missing column must read as
+   "we couldn't measure this", not as a zero score the site has earned. */
+.engine-out { opacity: 0.72; }
+.engine-out .engine-name { color: var(--card-muted); }
+.band-out {
+  background: var(--card-tint);
+  color: var(--card-faint);
+  border: 1px dashed var(--card-line);
+}
+.engine-stat.out { color: var(--card-faint); font-style: italic; }
+
+/* Multiple pipeline notes stack instead of overwriting each other. */
+.warn-line { display: block; }
+.warn-line + .warn-line { margin-top: 0.35rem; }
+
+.queries-note {
+  margin: 0.9rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--card-line);
+  font-size: 0.78rem;
+  color: var(--card-muted);
+}
+.queries-note em { color: var(--card-soft-ink); font-style: normal; font-weight: 600; }
+
+/* Named by some engines but fewer than half — real, but not a win. */
+.chip.partial { border-color: #fcd34d; background: #fffbeb; }
+.chip.partial i { color: var(--card-accent-deep); }
