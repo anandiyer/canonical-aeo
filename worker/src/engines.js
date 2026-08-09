@@ -11,13 +11,22 @@
  */
 
 import { complete } from "./openrouter.js";
+import { askGemini } from "./gemini.js";
 
 export const ENGINES = [
   { id: "chatgpt", label: "ChatGPT", envKey: "ENGINE_CHATGPT", fallback: "openai/gpt-5.6-luna", web: "native" },
   { id: "claude", label: "Claude", envKey: "ENGINE_CLAUDE", fallback: "anthropic/claude-sonnet-5", web: "native" },
   { id: "perplexity", label: "Perplexity", envKey: "ENGINE_PERPLEXITY", fallback: "perplexity/sonar", web: false },
   { id: "grok", label: "Grok", envKey: "ENGINE_GROK", fallback: "x-ai/grok-4.3", web: "native" },
+  // Direct Google API, not OpenRouter — see src/gemini.js for why. Included
+  // only when GEMINI_API_KEY is set AND that key can actually ground.
+  { id: "gemini", label: "Gemini", envKey: "ENGINE_GEMINI", fallback: "gemini-3.5-flash", provider: "google" },
 ];
+
+/** Engines usable with the keys currently configured. */
+export function activeEngines(env) {
+  return ENGINES.filter((e) => (e.provider === "google" ? !!env.GEMINI_API_KEY : !!env.OPENROUTER_API_KEY));
+}
 
 /* Hosts that are never a "competitor" — aggregators, forums, encyclopedias.
    Without this, every share-of-voice reading is dominated by Reddit and G2. */
@@ -51,15 +60,18 @@ export function mentionsBrand(text, names) {
 }
 
 /** Ask one engine one query. Never throws — a dead engine degrades visibly. */
-async function askOne(key, engine, model, query, brandNames, ownDomain, maxTokens) {
+async function askOne(env, engine, model, query, brandNames, ownDomain, maxTokens) {
   try {
-    const res = await complete(key, {
-      model,
-      prompt: query,
-      maxTokens,
-      web: engine.web,
-      temperature: 0,
-    });
+    const res =
+      engine.provider === "google"
+        ? await askGemini(env.GEMINI_API_KEY, model, query, { maxTokens })
+        : await complete(env.OPENROUTER_API_KEY, {
+            model,
+            prompt: query,
+            maxTokens,
+            web: engine.web,
+            temperature: 0,
+          });
 
     const hosts = res.annotations
       .map((u) => { try { return new URL(u).hostname; } catch { return null; } })
@@ -91,8 +103,8 @@ async function askOne(key, engine, model, query, brandNames, ownDomain, maxToken
  * can fill in columns incrementally rather than sitting on a spinner.
  */
 export async function runEngines(queryPlan, crawl, env, onProgress = () => {}, opts = {}) {
-  const key = env.OPENROUTER_API_KEY;
-  if (!key) return null;
+  const engines = activeEngines(env);
+  if (!engines.length) return null;
 
   const maxTokens = Number(env.ENGINE_MAX_TOKENS || 900);
   const brandNames = [queryPlan.brand, ...queryPlan.aliases].filter(Boolean);
@@ -102,17 +114,17 @@ export async function runEngines(queryPlan, crawl, env, onProgress = () => {}, o
   // Fit within the remaining subrequest budget. Asking every engine fewer
   // questions is far better than asking some engines nothing: a missing engine
   // reads as "this engine never mentions you", which is a lie.
-  const perEngine = Math.max(1, Math.floor((opts.subrequestBudget ?? Infinity) / ENGINES.length));
+  const perEngine = Math.max(1, Math.floor((opts.subrequestBudget ?? Infinity) / engines.length));
   const queries = queryPlan.queries.slice(0, perEngine);
   const trimmed = queryPlan.queries.length - queries.length;
 
   // Engines run in parallel; the queries within an engine also run in parallel.
   await Promise.all(
-    ENGINES.map(async (engine) => {
+    engines.map(async (engine) => {
       const model = env[engine.envKey] || engine.fallback;
       const answers = await Promise.all(
         queries.map((q) =>
-          askOne(key, engine, model, q.q, brandNames, crawl.hostname, maxTokens)
+          askOne(env, engine, model, q.q, brandNames, crawl.hostname, maxTokens)
         )
       );
 

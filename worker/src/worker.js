@@ -14,7 +14,7 @@ import { runDeterministicAudit } from "./audit.js";
 import { scoreReport, rankFixes } from "./score.js";
 import { attachArtifacts } from "./fixes.js";
 import { generateQueries } from "./queries.js";
-import { runEngines, alsoCited, ENGINES } from "./engines.js";
+import { runEngines, alsoCited, ENGINES, activeEngines } from "./engines.js";
 import { scoreVisibility } from "./visibility.js";
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days (PRD §9)
@@ -198,7 +198,9 @@ async function notifySlack(env, payload) {
     // Slack answers a bad or revoked webhook with a 4xx and a one-word body.
     // Swallowing that made a misconfigured URL indistinguishable from a working
     // one — the failure has to be visible in `wrangler tail` to be fixable.
-    if (!res.ok) {
+    if (res.ok) {
+      console.log(`slack: posted ${site.hostname}`);
+    } else {
       console.error(`slack webhook rejected: ${res.status} ${(await res.text()).slice(0, 120)}`);
     }
   } catch (err) {
@@ -287,7 +289,8 @@ async function runPipeline(send, input, env, quota) {
       // per invocation (50 free / 1000 paid); the crawl has already spent some.
       const cap = Number(env.SUBREQUEST_BUDGET || 45);
       const spare = Math.max(4, cap - (crawl.subrequests || 0) - 2);
-      const count = Math.max(ENGINES.length, Math.floor(spare / ENGINES.length));
+      const engineCount = activeEngines(env).length || 1;
+      const count = Math.max(engineCount, Math.floor(spare / engineCount));
       queryPlan = await generateQueries(crawl, env, { count });
     } catch (err) {
       const message = String(err?.message || err);
@@ -312,7 +315,7 @@ async function runPipeline(send, input, env, quota) {
   // 4 — ask the answer engines
   if (queryPlan) {
     await stage("engines", "active");
-    await status(`Asking ${ENGINES.length} answer engines ${queryPlan.queries.length} questions…`);
+    await status(`Asking ${activeEngines(env).length} answer engines ${queryPlan.queries.length} questions…`);
     try {
       // Cloudflare caps subrequests per invocation (50 free / 1000 paid). The
       // crawl has already spent some; reserve 2 for sentiment + headroom and
@@ -445,7 +448,7 @@ export default {
             await send({ type: "score", ...hit.report });
             await send({ type: "fixes", fixes: hit.fixes || [] });
             await send({ type: "done" });
-            notifySlack(env, { ...hit, cached: true });
+            await notifySlack(env, { ...hit, cached: true });
           }, request, env);
         }
       }
@@ -478,9 +481,11 @@ export default {
       return sseStream(async (send) => {
         const result = await runPipeline(send, body.input, env, { ...quota, domainRemaining: domainQuota.remaining - 1 });
         if (result) {
-          // Not awaited on the user's critical path — the SSE stream is already
-          // complete by this point.
-          notifySlack(env, { ...result, cached: false });
+          // MUST be awaited. Cloudflare cancels pending promises when the
+          // invocation ends, so a fire-and-forget fetch here never actually
+          // sent — it failed silently and looked fine in the logs. The stream
+          // has already emitted `done`, so this costs the user nothing.
+          await notifySlack(env, { ...result, cached: false });
         }
         if (env.CACHE && result) {
           await env.CACHE.put(
@@ -490,6 +495,30 @@ export default {
           );
         }
       }, request, env);
+    }
+
+    // TEMPORARY diagnostic — verifies the webhook without running a scan and
+    // reports Slack's actual HTTP response. Removed once confirmed.
+    if (request.method === "GET" && url.pathname === "/debug/slack") {
+      const hook = env.SEARCH_WEBHOOK || env.FEEDBACK_WEBHOOK;
+      if (!hook) return json({ configured: false }, 200, cors);
+      let status = null, body = null, threw = null;
+      try {
+        const r = await fetch(hook, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: ":wrench: AEO webhook test" }),
+        });
+        status = r.status;
+        body = (await r.text()).slice(0, 200);
+      } catch (e) {
+        threw = String(e?.message || e);
+      }
+      return json({
+        configured: true,
+        hookHost: (() => { try { return new URL(hook).host; } catch { return "unparseable"; } })(),
+        status, body, threw,
+      }, 200, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/feedback") {

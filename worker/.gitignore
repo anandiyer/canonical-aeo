@@ -1,4 +1,15 @@
 node_modules/
-.dev.vars
 .wrangler/
 .DS_Store
+
+# Local secrets. The glob matters: plain `.dev.vars` does not cover editor
+# artefacts, and a vim swap file (.dev.vars.swp) holds the same plaintext keys.
+# One was nearly committed because of exactly that gap.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Editor scratch files anywhere in the tree
+*.swp
+*.swo
+*~
