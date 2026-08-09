@@ -212,7 +212,10 @@ async function notifySlack(env, payload) {
 
 /* ── the pipeline ───────────────────────────────────────────────────────── */
 
-const STEPS = ["fetch", "audit", "queries", "engines", "score", "fixes"];
+// Reordered: the business classification now comes before the audit, because
+// Pillar C needs to know what kind of company this is before it can judge
+// whether checks like published pricing even apply.
+const STEPS = ["fetch", "queries", "audit", "engines", "score", "fixes"];
 
 /**
  * fetch → audit → queries → engines → score → fixes.
@@ -251,37 +254,7 @@ async function runPipeline(send, input, env, quota) {
   await send({ type: "site", site });
   await recordStage("fetch", "done");
 
-  // 2 — deterministic audit
-  await stage("audit", "active");
-  await status("Checking crawler access, schema and agent readiness…");
-  const pillars = runDeterministicAudit(crawl);
-
-  // Pillar C sits in the audit stage rather than getting its own step: 16 of
-  // its 25 points are deterministic and the model half is a single call, so
-  // splitting it out would show the user a step that's over before it renders.
-  await status("Reading how the copy is written…");
-  try {
-    const content = await auditContent(crawl, env);
-    if (content?.pillar?.max > 0) pillars.push(content.pillar);
-  } catch (err) {
-    const message = String(err?.message || err);
-    console.error("content audit failed:", message);
-    await send({ type: "warn", where: "content", message });
-  }
-
-  const pillarDetail = pillars.map((p) => ({
-    id: p.id,
-    label: p.label,
-    max: p.max,
-    score: p.checks.reduce((s, c) => s + c.points, 0),
-    checks: p.checks.map(({ id, label, state, points, max, evidence }) => ({
-      id, label, state, points, max, evidence,
-    })),
-  }));
-  for (const pillar of pillarDetail) await send({ type: "audit", pillar });
-  await recordStage("audit", "done");
-
-  // 3 — query generation
+  // 2 — understand the business (drives both the questions and Pillar C)
   let queryPlan = null;
   let visibility = null;
   let engineDetail = null;
@@ -326,6 +299,36 @@ async function runPipeline(send, input, env, quota) {
   } else {
     await recordStage("queries", "skipped");
   }
+
+  // 3 — audit: structure, schema, agent-readiness, and how the copy reads
+  await stage("audit", "active");
+  await status("Checking crawler access, schema and agent readiness…");
+  const pillars = runDeterministicAudit(crawl);
+
+  // Pillar C sits in the audit stage rather than getting its own step: 16 of
+  // its 25 points are deterministic and the model half is a single call, so
+  // splitting it out would show the user a step that's over before it renders.
+  await status("Reading how the copy is written…");
+  try {
+    const content = await auditContent(crawl, env, queryPlan);
+    if (content?.pillar?.max > 0) pillars.push(content.pillar);
+  } catch (err) {
+    const message = String(err?.message || err);
+    console.error("content audit failed:", message);
+    await send({ type: "warn", where: "content", message });
+  }
+
+  const pillarDetail = pillars.map((p) => ({
+    id: p.id,
+    label: p.label,
+    max: p.max,
+    score: p.checks.reduce((s, c) => s + c.points, 0),
+    checks: p.checks.map(({ id, label, state, points, max, evidence }) => ({
+      id, label, state, points, max, evidence,
+    })),
+  }));
+  for (const pillar of pillarDetail) await send({ type: "audit", pillar });
+  await recordStage("audit", "done");
 
   // 4 — ask the answer engines
   if (queryPlan) {

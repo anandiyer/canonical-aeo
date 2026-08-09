@@ -104,9 +104,10 @@ function comparisonPages(crawl) {
  * doesn't apply the check is dropped from the pillar max rather than scored
  * zero, the same rule used elsewhere for things we didn't measure.
  */
-function pricingInText(crawl) {
+function pricingInText(crawl, profile) {
   const pricingPage = crawl.pages.find((p) => /\/(pricing|plans|price)/i.test(pathOf(p)));
   const allText = crawl.pages.map((p) => visibleText(p.html || "")).join(" ");
+
   // Deliberately narrow. An earlier, looser version matched "sign up" and a
   // stray "/mo" on canonical.cc — a venture firm with nothing to sell — and
   // marked it down 4 points for having no prices. Only unambiguous
@@ -116,7 +117,22 @@ function pricingInText(crawl) {
     /(per (month|user|seat)|billed (annually|monthly)|free trial|starts at\s*[$£€]|pricing starts)/i.test(allText) ||
     /"@type"\s*:\s*"(Offer|AggregateOffer)"/i.test(crawl.pages.map((p) => p.html || "").join(" "));
 
-  if (!pricingPage && !commerceSignals) {
+  // The site profile decides applicability when we have one. Whether a company
+  // sells anything is a judgement about what it *is*, and no keyword matching
+  // gets there — a venture firm's site is full of money words and sells
+  // nothing. Authoritative in BOTH directions: deferring to the profile only
+  // when it says "no", then re-running keywords when it says "yes", would let
+  // the heuristic overrule the thing that exists to replace it.
+  if (profile) {
+    if (profile.sellsDirectly === false) {
+      return check("c-pricing", "Prices are readable as text", "n/a", 0, 0, {
+        applicable: false,
+        businessModel: profile.businessModel || null,
+        why: `A ${profile.businessModel || "organisation"} of this kind doesn't sell at a list price, so published pricing isn't scored.`,
+      }, null);
+    }
+  } else if (!pricingPage && !commerceSignals) {
+    // Fallback only, for runs with no model available to classify the site.
     return check("c-pricing", "Prices are readable as text", "n/a", 0, 0,
       { applicable: false, why: "No pricing page and no commerce signals — this site doesn't appear to sell directly." }, null);
   }
@@ -269,12 +285,17 @@ export const __bandForTest = (n) => (n >= 0.75 ? 1 : n >= 0.4 ? 0.5 : 0);
 
 /* ── pillar ─────────────────────────────────────────────────────────────── */
 
-export async function auditContent(crawl, env) {
+/**
+ * @param profile optional site classification from the query stage
+ *                ({ businessModel, sellsDirectly }). When present it decides
+ *                which checks apply; without it we fall back to heuristics.
+ */
+export async function auditContent(crawl, env, profile = null) {
   const deterministic = [
     questionHeadings(crawl),
     scannable(crawl),
     comparisonPages(crawl),
-    pricingInText(crawl),
+    pricingInText(crawl, profile),
     freshness(crawl),
   ];
   const model = await modelChecks(crawl, env);

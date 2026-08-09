@@ -9,6 +9,7 @@
 import { crawlSite } from "./src/crawl.js";
 import { runDeterministicAudit } from "./src/audit.js";
 import { auditContent } from "./src/content.js";
+import { generateQueries } from "./src/queries.js";
 import { scoreReport, rankFixes } from "./src/score.js";
 import { attachArtifacts } from "./src/fixes.js";
 
@@ -27,7 +28,7 @@ const C = {
   red: (s) => `\x1b[31m${s}\x1b[0m`,
   cyan: (s) => `\x1b[36m${s}\x1b[0m`,
 };
-const MARK = { pass: C.green("✔"), partial: C.yellow("◐"), fail: C.red("✖") };
+const MARK = { pass: C.green("✔"), partial: C.yellow("◐"), fail: C.red("✖"), "n/a": C.dim("–") };
 
 const crawl = await crawlSite(target, (m) => !asJson && console.error(C.dim("  " + m)));
 const pillars = runDeterministicAudit(crawl);
@@ -36,7 +37,20 @@ const envForContent = Object.fromEntries(
     .split("\n").filter((l) => l.includes("=") && !l.trim().startsWith("#"))
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, "")]; })
 );
-const contentPillar = await auditContent(crawl, process.argv.includes("--no-model") ? {} : envForContent);
+// Classify the business first, exactly as the Worker does. Without this the
+// CLI scores differently from production — e.g. grading a venture firm on
+// published pricing that production correctly marks n/a.
+const modelEnv = process.argv.includes("--no-model") ? {} : envForContent;
+let profile = null;
+if (modelEnv.OPENROUTER_API_KEY) {
+  try {
+    profile = await generateQueries(crawl, modelEnv, { count: 5 });
+    if (!asJson) console.error(C.dim(`  business model: ${profile.businessModel} · sells directly: ${profile.sellsDirectly}`));
+  } catch (err) {
+    if (!asJson) console.error(C.dim(`  (classification failed: ${err.message.slice(0, 80)})`));
+  }
+}
+const contentPillar = await auditContent(crawl, modelEnv, profile);
 if (contentPillar?.pillar?.max > 0) pillars.push(contentPillar.pillar);
 const report = scoreReport(pillars);
 const fixes = attachArtifacts(rankFixes(pillars), crawl);
@@ -57,7 +71,10 @@ for (const p of pillars) {
   const got = p.checks.reduce((s, c) => s + c.points, 0);
   console.log(`${C.cyan(p.label)} ${C.dim(`${got}/${p.max}`)}`);
   for (const c of p.checks) {
-    console.log(`  ${MARK[c.state]} ${c.label} ${C.dim(`${c.points}/${c.max}`)}`);
+    console.log(
+      `  ${MARK[c.state] || C.dim("?")} ${c.label} ` +
+      (c.state === "n/a" ? C.dim("not applicable") : C.dim(`${c.points}/${c.max}`))
+    );
   }
   console.log("");
 }

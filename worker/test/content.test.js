@@ -150,3 +150,27 @@ test("model scores are banded so small drift can't move the number", async () =>
   assert.equal(__bandForTest(0.8), 1);
   assert.equal(__bandForTest(0.2), 0);
 });
+
+test("the site profile, not keywords, decides whether pricing applies", async () => {
+  // A venture firm's site is full of money words and sells nothing at a list
+  // price. No keyword heuristic gets this right; the classification does.
+  const vcLike = crawl({ pages: [page("/faqs",
+    "<p>We write $500K to $1.5M checks. Founders often ask about terms per round.</p>")] });
+  const asInvestor = await auditContent(vcLike, {}, { businessModel: "investor", sellsDirectly: false });
+  const c = asInvestor.pillar.checks.find((x) => x.id === "c-pricing");
+  assert.equal(c.state, "n/a");
+  assert.equal(c.max, 0);
+  assert.equal(c.evidence.businessModel, "investor");
+
+  // Identical page, classified as SaaS → the check applies and passes.
+  const asSaas = await auditContent(vcLike, {}, { businessModel: "saas", sellsDirectly: true });
+  const c2 = asSaas.pillar.checks.find((x) => x.id === "c-pricing");
+  assert.notEqual(c2.state, "n/a");
+  assert.equal(c2.max, 4);
+});
+
+test("an omitted sellsDirectly does not silently exempt a company", async () => {
+  const noFlag = await auditContent(crawl({ pages: [page("/pricing", "<p>From $49 per user.</p>")] }),
+    {}, { businessModel: "saas" });
+  assert.notEqual(noFlag.pillar.checks.find((x) => x.id === "c-pricing").state, "n/a");
+});

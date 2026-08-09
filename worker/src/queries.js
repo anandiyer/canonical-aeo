@@ -10,13 +10,36 @@
 import { completeJson } from "./openrouter.js";
 import { extractMeta, visibleText } from "./html.js";
 
+/* Five intents, not five templates.
+ *
+ * The "economics" slot used to be hardcoded as pricing, which asked a venture
+ * firm "how much does venture capital cost" — a question nobody types and no
+ * engine answers usefully. What a buyer wants to know about the money differs
+ * by business: a SaaS buyer asks the price, a founder asks a fund's check size,
+ * a donor asks where the money goes. The intent is constant; the phrasing has
+ * to follow the business model. */
 export const QUERY_SHAPES = [
-  { id: "best-for", n: 3, hint: "best {category} for {ICP} — no brand name" },
+  { id: "best-for", n: 3, hint: "best {category} for {ICP} — must NOT name the brand" },
   { id: "alternatives", n: 2, hint: "{brand} alternatives, or {brand} vs {named competitor}" },
-  { id: "pricing", n: 2, hint: "how much {category} costs — no brand name" },
-  { id: "reputation", n: 2, hint: "is {brand} any good / {brand} reviews" },
-  { id: "jtbd", n: 3, hint: "how do I {job the buyer is trying to do} — no brand name" },
+  { id: "economics", n: 2, hint: "the money question a buyer actually asks — see ECONOMICS below. Must NOT name the brand unless the question is meaningless without it." },
+  { id: "reputation", n: 2, hint: "is {brand} any good / {brand} reviews / what is {brand} like to work with" },
+  { id: "jtbd", n: 3, hint: "how do I {job the buyer is trying to do} — must NOT name the brand" },
 ];
+
+/** How the economics question should be phrased, per business model. */
+export const ECONOMICS_BY_MODEL = {
+  saas: "what it costs — pricing, per-seat cost, whether there's a free tier",
+  ecommerce: "what it costs — price range, shipping, returns",
+  hardware: "what it costs — unit price, lead time",
+  marketplace: "fees and take rate",
+  "professional-services": "typical fees, day rates, or retainer",
+  agency: "typical fees, retainer, or project cost",
+  investor: "check size, stage, and terms — e.g. 'how big are pre-seed checks in {category}', NOT 'how much does investing cost'",
+  media: "whether it's free, subscription price, or how it's funded",
+  nonprofit: "how it's funded and where donations go — NOT a product price",
+  community: "whether membership is free or paid",
+  other: "whatever the money question is for this kind of organisation, if there is one",
+};
 
 export const QUERY_COUNT = QUERY_SHAPES.reduce((n, s) => n + s.n, 0); // 12
 
@@ -76,9 +99,11 @@ Return JSON exactly like:
 {
   "brand": "the company's name as a buyer would say it",
   "aliases": ["other names or spellings a model might use"],
-  "category": "the product category in buyer language, e.g. 'demand forecasting software'",
-  "icp": "who buys it, e.g. 'mid-market retail and CPG supply chain teams'",
-  "competitors": ["up to 5 named competitors you can infer"],
+  "businessModel": "one of: saas, ecommerce, hardware, marketplace, professional-services, agency, investor, media, nonprofit, community, other",
+  "sellsDirectly": true,
+  "category": "the category in buyer language, e.g. 'demand forecasting software' or 'pre-seed venture firm'",
+  "icp": "who the audience is, e.g. 'mid-market retail supply chain teams' or 'technical pre-product founders'",
+  "competitors": ["up to 5 named competitors or peers you can infer"],
   "queries": [
     {"shape": "best-for", "q": "..."},
     {"shape": "alternatives", "q": "..."},
@@ -90,6 +115,13 @@ Return JSON exactly like:
 
 Produce exactly ${total} queries, distributed as:
 ${plan.map((s) => `- ${s.n} × "${s.id}": ${s.hint}`).join("\n")}
+
+ECONOMICS — phrase the "economics" queries to suit the business model you chose:
+${Object.entries(ECONOMICS_BY_MODEL).map(([k, v]) => `- ${k}: ${v}`).join("\n")}
+
+"sellsDirectly" is false for organisations that do not sell a product or service
+for a price — venture firms, nonprofits, community projects, most media. Be
+honest about it; it controls whether we grade the site on published pricing.
 
 Rules:
 - Write queries the way a real buyer types them into ChatGPT. No marketing language.
@@ -143,9 +175,18 @@ export async function generateQueries(crawl, env, opts = {}) {
   // back to the hostname rather than letting it come back empty.
   const brand = String(data.brand || "").trim() || crawl.hostname.replace(/^www\./, "").split(".")[0];
 
+  const MODELS = Object.keys(ECONOMICS_BY_MODEL);
+  const businessModel = MODELS.includes(String(data.businessModel || "").toLowerCase())
+    ? String(data.businessModel).toLowerCase()
+    : "other";
+
   return {
     brand,
     aliases: (Array.isArray(data.aliases) ? data.aliases : []).map(String).filter(Boolean),
+    businessModel,
+    // Only an explicit false counts as "doesn't sell" — an omitted field must
+    // not silently exempt a company from the pricing check.
+    sellsDirectly: data.sellsDirectly === false ? false : true,
     category: String(data.category || "").trim() || null,
     icp: String(data.icp || "").trim() || null,
     competitors: (Array.isArray(data.competitors) ? data.competitors : []).map(String).filter(Boolean),
