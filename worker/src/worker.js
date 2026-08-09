@@ -497,30 +497,6 @@ export default {
       }, request, env);
     }
 
-    // TEMPORARY diagnostic — verifies the webhook without running a scan and
-    // reports Slack's actual HTTP response. Removed once confirmed.
-    if (request.method === "GET" && url.pathname === "/debug/slack") {
-      const hook = env.SEARCH_WEBHOOK || env.FEEDBACK_WEBHOOK;
-      if (!hook) return json({ configured: false }, 200, cors);
-      let status = null, body = null, threw = null;
-      try {
-        const r = await fetch(hook, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text: ":wrench: AEO webhook test" }),
-        });
-        status = r.status;
-        body = (await r.text()).slice(0, 200);
-      } catch (e) {
-        threw = String(e?.message || e);
-      }
-      return json({
-        configured: true,
-        hookHost: (() => { try { return new URL(hook).host; } catch { return "unparseable"; } })(),
-        status, body, threw,
-      }, 200, cors);
-    }
-
     if (request.method === "POST" && url.pathname === "/feedback") {
       const hook = env.FEEDBACK_WEBHOOK;
       if (!hook) return json({ ok: true }, 200, cors); // no-op when unconfigured
