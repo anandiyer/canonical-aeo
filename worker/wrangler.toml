@@ -14,7 +14,14 @@ custom_domain = true
 
 [vars]
 ALLOWED_ORIGIN = "https://canonical.cc,https://www.canonical.cc"
-DAILY_LIMIT = "3"
+# Per-DOMAIN fresh scans per UTC day — the limit users actually feel. Cached
+# reads are free and unlimited, so sharing or revisiting a report never counts.
+DOMAIN_DAILY_LIMIT = "3"
+
+# Per-IP backstop. Deliberately looser than the domain limit: a purely
+# per-domain cap would let one caller scan unlimited *different* domains, which
+# is unbounded spend. MAX_PAID_RUNS_PER_DAY below is the real cost ceiling.
+DAILY_LIMIT = "15"
 # Hybrid models via OpenRouter, same convention as canonical-lookalike.
 #   CHEAP  → query generation + answer parsing
 #   STRONG → content-shape analysis + fix artifacts

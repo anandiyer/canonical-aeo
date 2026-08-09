@@ -55,14 +55,37 @@ const json = (body, status, headers) =>
 
 const todayKey = () => new Date().toISOString().slice(0, 10); // UTC day
 
+/**
+ * Per-DOMAIN daily cap — the limit users actually feel.
+ *
+ * Three fresh scans of the same site per UTC day. Cached reads don't count, so
+ * revisiting or sharing a report is always free.
+ */
+async function checkDomainQuota(domain, env) {
+  const limit = Number(env.DOMAIN_DAILY_LIMIT || 3);
+  if (!env.RL) return { allowed: true, remaining: limit };
+  const key = `aeo:domain:${domain}:${todayKey()}`;
+  const used = Number((await env.RL.get(key)) || 0);
+  if (used >= limit) return { allowed: false, remaining: 0, key, used, limit, scope: "domain" };
+  return { allowed: true, remaining: limit - used, key, used, limit, scope: "domain" };
+}
+
+/**
+ * Per-IP daily cap — a backstop, not the headline limit.
+ *
+ * A purely per-domain limit would let one caller scan unlimited *different*
+ * domains, which is unbounded spend. This is set loose enough not to interfere
+ * with normal use while still capping a single abuser; the global
+ * MAX_PAID_RUNS_PER_DAY is the real ceiling on cost.
+ */
 async function checkQuota(request, env) {
-  const limit = Number(env.DAILY_LIMIT || 3);
+  const limit = Number(env.DAILY_LIMIT || 15);
   if (!env.RL) return { allowed: true, remaining: limit }; // no KV in local dev
   const ip = request.headers.get("CF-Connecting-IP") || "anon";
   const key = `aeo:${ip}:${todayKey()}`;
   const used = Number((await env.RL.get(key)) || 0);
-  if (used >= limit) return { allowed: false, remaining: 0, key, used };
-  return { allowed: true, remaining: limit - used, key, used };
+  if (used >= limit) return { allowed: false, remaining: 0, key, used, limit, scope: "ip" };
+  return { allowed: true, remaining: limit - used, key, used, limit, scope: "ip" };
 }
 
 /**
@@ -129,6 +152,54 @@ function sseStream(handler, request, env) {
   });
 }
 
+/* ── Slack ──────────────────────────────────────────────────────────────── */
+
+/**
+ * Post every scan to #hack-central.
+ *
+ * Fire-and-forget and never awaited on the critical path: a Slack outage must
+ * not slow down or fail a user's scan. SEARCH_WEBHOOK falls back to
+ * FEEDBACK_WEBHOOK, matching the canonical-lookalike convention where both
+ * point at the same channel.
+ */
+async function notifySlack(env, payload) {
+  const hook = env.SEARCH_WEBHOOK || env.FEEDBACK_WEBHOOK;
+  if (!hook) return;
+
+  const { site, report, queryPlan, engineDetail, fixes, cached, ip } = payload;
+  const grade = report ? `${report.score}/100 · ${report.band}` : "—";
+
+  const lines = [
+    `*<https://canonical.cc/labs/aeo/?d=${encodeURIComponent(site.hostname)}|${site.hostname}>* — ${grade}${cached ? " _(cached)_" : ""}`,
+  ];
+
+  if (report?.pillars?.length) {
+    lines.push(report.pillars.map((p) => `${p.label.replace(/ .*/, "")} ${p.score}/${p.max}`).join(" · "));
+  }
+  if (engineDetail?.engines?.length) {
+    lines.push(
+      "> " + engineDetail.engines
+        .map((e) => `${e.label} ${e.mentioned}/${e.answered}${e.cited ? ` (${e.cited} cited)` : ""}`)
+        .join("  ·  ")
+    );
+  }
+  if (queryPlan?.queries?.length) {
+    lines.push("> _Asked:_ " + queryPlan.queries.map((q) => q.q).join(" · "));
+  }
+  const top = (fixes || []).filter((f) => f.severity === "critical" || f.severity === "high").slice(0, 3);
+  if (top.length) lines.push("> _Top fixes:_ " + top.map((f) => f.label).join(" · "));
+
+  try {
+    await fetch(hook, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: `:mag: *AEO scan*\n${lines.join("\n")}` }),
+    });
+  } catch {
+    /* Slack being down is not the user's problem */
+  }
+}
+
 /* ── the pipeline ───────────────────────────────────────────────────────── */
 
 const STEPS = ["fetch", "audit", "queries", "engines", "score", "fixes"];
@@ -145,7 +216,7 @@ async function runPipeline(send, input, env, quota) {
   const stage = (step, state) => send({ type: "stage", step, state });
   const status = (text) => send({ type: "status", text });
 
-  await send({ type: "quota", remaining: quota.remaining });
+  await send({ type: "quota", remaining: quota.remaining, domainRemaining: quota.domainRemaining });
 
   // Recorded so a cached replay reproduces exactly what the live run reported.
   // Storing less than we emit is how a cached report ends up claiming steps ran
@@ -367,22 +438,43 @@ export default {
             await send({ type: "score", ...hit.report });
             await send({ type: "fixes", fixes: hit.fixes || [] });
             await send({ type: "done" });
+            notifySlack(env, { ...hit, cached: true });
           }, request, env);
         }
+      }
+
+      // Domain limit first — it's the one the user asked for and the one whose
+      // message is actionable ("this site, today"), so it should win the race
+      // to explain a 429.
+      const domainQuota = await checkDomainQuota(domain, env);
+      if (!domainQuota.allowed) {
+        return json(
+          {
+            error: `${domain} has been scanned ${domainQuota.limit} times today. Fresh scans reset at midnight UTC — the existing report stays free to view.`,
+            scope: "domain",
+            remaining: 0,
+          },
+          429, cors
+        );
       }
 
       const quota = await checkQuota(request, env);
       if (!quota.allowed) {
         return json(
-          { error: "Daily limit reached.", remaining: 0 },
-          429,
-          cors
+          { error: "You've hit today's overall scan limit. It resets at midnight UTC.", scope: "ip", remaining: 0 },
+          429, cors
         );
       }
       await consumeQuota(env, quota);
+      await consumeQuota(env, domainQuota);
 
       return sseStream(async (send) => {
-        const result = await runPipeline(send, body.input, env, quota);
+        const result = await runPipeline(send, body.input, env, { ...quota, domainRemaining: domainQuota.remaining - 1 });
+        if (result) {
+          // Not awaited on the user's critical path — the SSE stream is already
+          // complete by this point.
+          notifySlack(env, { ...result, cached: false });
+        }
         if (env.CACHE && result) {
           await env.CACHE.put(
             cacheKey(domain),

@@ -15,7 +15,27 @@ const PAGE_TIMEOUT_MS = 8000;
 const MAX_BYTES = 1_500_000; // don't pull a whole video into memory
 
 /** Pages worth having even if they aren't linked from the nav. */
-const PRIORITY_PATHS = ["/pricing", "/about", "/product", "/products", "/docs", "/faq"];
+const PRIORITY_PATHS = [
+  "/pricing", "/about", "/product", "/products", "/docs", "/faq", "/faqs",
+];
+
+/* Pages that carry disproportionate AEO weight — the ones that answer buyer
+   questions and tend to hold FAQ/Product schema. Document order is a poor
+   frontier: a nav with ten links buries the FAQ that sits in the footer. */
+const HIGH_VALUE = [
+  /\/faqs?(\.html)?\/?$/i, /\/pricing/i, /\/about/i, /\/products?(\/|$)/i,
+  /\/services?(\/|$)/i, /\/solutions?(\/|$)/i, /\/docs?(\/|$)/i,
+  /\/how-it-works/i, /\/customers/i, /\/case-stud/i, /\/compare|\/vs-/i,
+];
+
+/** Lower sorts first: high-value pages, then shallow paths, then doc order. */
+function linkRank(url, index) {
+  let path;
+  try { path = new URL(url).pathname; } catch { return [9, 9, index]; }
+  const valuable = HIGH_VALUE.some((rx) => rx.test(path)) ? 0 : 1;
+  const depth = path.split("/").filter(Boolean).length;
+  return [valuable, depth, index];
+}
 
 /* Every network call goes through fetchText, so counting here gives an exact
    subrequest tally. Cloudflare caps subrequests per Worker invocation (50 on
@@ -172,14 +192,27 @@ export async function crawlSite(input, onProgress = () => {}) {
 
   onProgress("Crawling key pages…");
   const seen = new Set([home.finalUrl, href]);
+
+  // Real links the homepage actually points at come FIRST. PRIORITY_PATHS are
+  // speculative guesses, and on a site that doesn't use those names they are
+  // all 404s — putting them first meant six wasted slots crowded out genuine
+  // pages. (canonical.cc lost its linked /faqs page, and with it the FAQPage
+  // schema that page already carried, entirely to this ordering.)
+  // A high-value path that exists is nearly always linked, so it shows up here
+  // anyway; the speculative probes only ever add unlinked pages.
+  const discovered = extractLinks(home.html, href)
+    .map((url, i) => ({ url, rank: linkRank(url, i) }))
+    .sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2])
+    .map((x) => x.url);
+
   const queue = [];
+  for (const link of discovered) {
+    if (queue.length >= MAX_PAGES * 2) break;
+    if (!seen.has(link)) { queue.push(link); seen.add(link); }
+  }
   for (const p of PRIORITY_PATHS) {
     const u = origin + p;
     if (!seen.has(u)) { queue.push(u); seen.add(u); }
-  }
-  for (const link of extractLinks(home.html, href)) {
-    if (queue.length >= MAX_PAGES * 2) break;
-    if (!seen.has(link)) { queue.push(link); seen.add(link); }
   }
 
   const fetched = await Promise.all(queue.slice(0, MAX_PAGES - 1).map((u) => fetchText(u)));

@@ -407,8 +407,10 @@ function handleEvent(ev) {
       $("status").textContent = ev.text || "";
       break;
     case "quota":
-      if (ev.remaining != null) {
-        $("quota").textContent = `${ev.remaining} check${ev.remaining === 1 ? "" : "s"} left today`;
+      // Show the per-domain allowance: it's the one a user actually runs into.
+      const left = ev.domainRemaining != null ? ev.domainRemaining : ev.remaining;
+      if (left != null) {
+        $("quota").textContent = `${left} scan${left === 1 ? "" : "s"} left for this site today`;
       }
       break;
     case "cached":
@@ -508,9 +510,13 @@ async function run(input, opts = {}) {
     });
 
     if (res.status === 429) {
+      const body = await res.json().catch(() => ({}));
       $("stage").classList.add("is-hidden");
+      // The worker distinguishes the per-domain limit from the per-IP backstop;
+      // "this site, today" is the actionable message, so prefer its wording.
       showNotice(
-        `<b>Daily limit reached.</b> You've used your checks for today — they reset at midnight UTC. Reports already generated stay free to revisit.`,
+        `<b>Limit reached.</b> ${esc(body.error || "Fresh scans reset at midnight UTC.")}` +
+          ` <a href="?d=${encodeURIComponent(lastInput.replace(/^https?:\/\//, ""))}">View the existing report</a> — cached reports are always free.`,
         false
       );
       return;
