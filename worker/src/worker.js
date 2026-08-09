@@ -190,13 +190,20 @@ async function notifySlack(env, payload) {
   if (top.length) lines.push("> _Top fixes:_ " + top.map((f) => f.label).join(" · "));
 
   try {
-    await fetch(hook, {
+    const res = await fetch(hook, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: `:mag: *AEO scan*\n${lines.join("\n")}` }),
     });
-  } catch {
-    /* Slack being down is not the user's problem */
+    // Slack answers a bad or revoked webhook with a 4xx and a one-word body.
+    // Swallowing that made a misconfigured URL indistinguishable from a working
+    // one — the failure has to be visible in `wrangler tail` to be fixable.
+    if (!res.ok) {
+      console.error(`slack webhook rejected: ${res.status} ${(await res.text()).slice(0, 120)}`);
+    }
+  } catch (err) {
+    // Still never fatal: a Slack outage must not affect a user's scan.
+    console.error("slack webhook failed:", String(err?.message || err));
   }
 }
 
