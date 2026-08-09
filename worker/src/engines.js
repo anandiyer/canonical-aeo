@@ -64,7 +64,15 @@ async function askOne(env, engine, model, query, brandNames, ownDomain, maxToken
   try {
     const res =
       engine.provider === "google"
-        ? await askGemini(env.GEMINI_API_KEY, model, query, { maxTokens })
+        // Gemini needs its OWN budget. The two providers have opposite
+        // failure modes at low limits: below ~900 the OpenRouter engines stop
+        // searching and answer from memory, while Gemini below ~4000 truncates
+        // and drops groundingMetadata entirely. One shared number cannot serve
+        // both, and using the OpenRouter figure made Gemini report unavailable
+        // on every single question.
+        ? await askGemini(env.GEMINI_API_KEY, model, query, {
+            maxTokens: Number(env.GEMINI_MAX_TOKENS || 4000),
+          })
         : await complete(env.OPENROUTER_API_KEY, {
             model,
             prompt: query,

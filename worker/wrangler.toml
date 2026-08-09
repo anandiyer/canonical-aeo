@@ -43,6 +43,14 @@ ENGINE_GROK = "x-ai/grok-4.3"
 # Gemini 3.x includes 5,000 grounded searches/month, then $14/1,000.
 ENGINE_GEMINI = "gemini-3.5-flash"
 
+# Gemini's own token budget — deliberately NOT ENGINE_MAX_TOKENS. The two
+# providers fail in opposite directions at low limits: below ~900 the
+# OpenRouter engines silently stop searching, while Gemini below ~4000
+# truncates and drops groundingMetadata altogether (finishReason MAX_TOKENS),
+# which reads identically to "answered from memory". Verified: 900 → no
+# grounding, 4000 → STOP with 18 grounding chunks.
+GEMINI_MAX_TOKENS = "4000"
+
 # Measured cost per engine call on a real buyer query (2026-08-08):
 #   perplexity/sonar     $0.0052   10 citations
 #   openai/gpt-5.6-luna  $0.0122    3 citations

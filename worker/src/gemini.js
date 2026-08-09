@@ -21,7 +21,12 @@
 const API = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /** Ask Gemini one question with Google Search grounding attached. */
-export async function askGemini(key, model, prompt, { maxTokens = 900, timeoutMs = 45000 } = {}) {
+/* Grounding needs generous headroom. Gemini attaches groundingMetadata only
+   when it finishes cleanly — at maxOutputTokens 900 the same prompt came back
+   finishReason:MAX_TOKENS with NO grounding at all, which the caller would
+   have read as "answered from memory" and discarded. 4000 finishes with STOP
+   and 18 chunks. Do not lower this. */
+export async function askGemini(key, model, prompt, { maxTokens = 4000, timeoutMs = 60000 } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
@@ -57,14 +62,28 @@ export async function askGemini(key, model, prompt, { maxTokens = 900, timeoutMs
 
     // No groundingMetadata means the model answered from parametric memory. We
     // must not count that as a search result — it's the exact failure that made
-    // the OpenRouter route unusable.
+    // the OpenRouter route unusable. (Note a truncated response also arrives
+    // without grounding, hence the large token budget above.)
     if (!grounding) {
-      throw new Error("Gemini returned an ungrounded answer (no groundingMetadata) — not counted.");
+      const why = candidate?.finishReason === "MAX_TOKENS"
+        ? "Gemini truncated before attaching grounding metadata"
+        : "Gemini returned an ungrounded answer (no groundingMetadata)";
+      throw new Error(`${why} — not counted.`);
     }
 
+    // groundingChunks[].web.uri is ALWAYS a vertexaisearch.cloud.google.com
+    // redirect, never the real source. Resolving each one would cost a
+    // subrequest per citation — 18 on a single answer here — and blow the
+    // Worker's per-invocation budget. Fortunately `web.title` carries the bare
+    // domain ("netstock.com", "slimstock.com"), which is exactly the
+    // attribution we need. Chunks whose title isn't domain-shaped are dropped
+    // rather than guessed at: an unattributable citation must not be counted
+    // for or against anyone.
+    const DOMAINISH = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
     const annotations = (grounding.groundingChunks || [])
-      .map((c) => c?.web?.uri)
-      .filter(Boolean);
+      .map((c) => String(c?.web?.title || "").trim().toLowerCase())
+      .filter((t) => DOMAINISH.test(t))
+      .map((host) => `https://${host}`);
 
     return {
       text,
