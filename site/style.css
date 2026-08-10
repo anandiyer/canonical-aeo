@@ -73,17 +73,12 @@ a:hover { color: #ffffff; }
 
 .tabular, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-/* Header + footer are inherited from the global canonical.cc stylesheet.
-   Just the mobile menu (the shared site script is home-page-specific). */
-.nav-mobile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-.nav-mobile[hidden] { display: none; }
+/* Header, footer and mobile menu all come from the global canonical.cc
+   stylesheet, which this page already loads. Do NOT add a local
+   .nav-mobile rule here: the shared menu is toggled by an .open class, so
+   a bare `.nav-mobile { display: flex }` loads after the global sheet and
+   pins the mobile menu permanently open — including on canonical.cc if
+   this file is copied there. */
 
 /* ── hero ────────────────────────────────────────────────────────────── */
 .hero {

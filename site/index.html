@@ -39,47 +39,114 @@
     <link rel="stylesheet" href="style.css?v=20260810a" />
   </head>
   <body>
-    <!-- Shared canonical.cc header (verbatim markup + global stylesheet classes). -->
+    <!-- Shared canonical.cc header.
+
+         canonical.cc renders this from _includes/header.html; the block below
+         is that include's rendered output, kept here so this page previews
+         standalone. It is a MIRROR, not a source: change the header in
+         anandiyer.github.io/_includes/header.html and re-render, never here.
+
+         Do not paste this block into anandiyer.github.io/labs/<lab>/index.html
+         — that page uses {% include header.html %} and pasting would re-fork
+         the header (which is how the logo went stale, and how a local
+         .nav-mobile rule once pinned the mobile menu open). -->
     <header id="header" class="fixed top-0 w-full bg-transparent z-50 transition-all duration-200">
-      <div class="container mx-auto px-8 py-8">
+    <div class="container mx-auto px-8 py-8">
         <div class="flex items-center justify-between">
-          <a href="/" class="logo-link">
-            <img src="/images/logo-rectangle-trans-short.svg" alt="Canonical" class="h-8 w-auto" />
-          </a>
-          <nav class="hidden md:flex items-center space-x-10">
-            <a href="/#about" class="nav-link">ABOUT</a>
-            <a href="https://blog.canonical.cc" class="nav-link">BLOG</a>
-            <a href="/#thesis" class="nav-link">THESIS</a>
-            <a href="/portfolio" class="nav-link">PORTFOLIO</a>
-            <div class="nav-dropdown">
-              <a href="/labs/" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">LABS</a>
-              <div class="nav-dropdown-menu" role="menu">
-                <a href="/labs/dilutionlab/" class="nav-dropdown-item" role="menuitem">Dilution Lab</a>
-                <a href="/labs/fundmodeler/" class="nav-dropdown-item" role="menuitem">Fund Modeler</a>
-                <a href="/labs/power-law/" class="nav-dropdown-item" role="menuitem">Power Law Lab</a>
-                <a href="/physical-ai-robotics/" class="nav-dropdown-item" role="menuitem">Physical AI &amp; Robotics</a>
-                <a href="/labs/semiconductor-silicon-stack/" class="nav-dropdown-item" role="menuitem">Semiconductor Stack</a>
-                <a href="/labs/lookalike/" class="nav-dropdown-item" role="menuitem">Lookalike Finder</a>
-                <a href="/labs/capital-call-planner/" class="nav-dropdown-item" role="menuitem">Capital Call Planner</a>
-                <a href="/labs/aeo/" class="nav-dropdown-item" role="menuitem">AEO Readiness</a>
-              </div>
-            </div>
-            <a href="/#team" class="nav-link">TEAM</a>
-          </nav>
-          <button class="nav-menu-toggle md:hidden" type="button" id="navToggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-mobile">
-            <span></span><span></span><span></span>
-          </button>
+            <a href="/" class="logo-link">
+                <img src="/images/canonical-wordmark-mono.svg" alt="Canonical" class="h-8 w-auto" />
+            </a>
+            <nav class="hidden md:flex items-center space-x-10">
+                <a href="/#about" class="nav-link" data-canonical-anchor="about">ABOUT</a>
+                <a href="https://blog.canonical.cc" class="nav-link">BLOG</a>
+                <a href="/#thesis" class="nav-link" data-canonical-anchor="thesis">THESIS</a>
+                <a href="/portfolio" class="nav-link">PORTFOLIO</a>
+                <div class="nav-dropdown">
+                    <a href="/labs/" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">LABS</a>
+                    <div class="nav-dropdown-menu" role="menu">
+                        <a href="/labs/dilutionlab/" class="nav-dropdown-item" role="menuitem">Dilution Lab</a>
+                        <a href="/labs/fundmodeler/" class="nav-dropdown-item" role="menuitem">Fund Modeler</a>
+                        <a href="/labs/power-law/" class="nav-dropdown-item" role="menuitem">Power Law Lab</a>
+                        <a href="/physical-ai-robotics/" class="nav-dropdown-item" role="menuitem">Physical AI &amp; Robotics</a>
+                        <a href="/labs/semiconductor-silicon-stack/" class="nav-dropdown-item" role="menuitem">Semiconductor Stack</a>
+                        <a href="/labs/decentralized-ai/" class="nav-dropdown-item" role="menuitem">Decentralized AI</a>
+                        <a href="/labs/data-centers/" class="nav-dropdown-item" role="menuitem">Data Centers & Neoclouds</a>
+                        <a href="/labs/lookalike/" class="nav-dropdown-item" role="menuitem">Lookalike Finder</a>
+                        <a href="/labs/capital-call-planner/" class="nav-dropdown-item" role="menuitem">Capital Call Planner</a>
+                        <a href="/labs/aeo/" class="nav-dropdown-item" role="menuitem">AEO Readiness</a>                    </div>
+                </div>
+                <a href="/#team" class="nav-link" data-canonical-anchor="team">TEAM</a>
+            </nav>
+            <button class="nav-menu-toggle md:hidden" type="button" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-mobile">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
-        <nav class="nav-mobile" id="nav-mobile" hidden>
-          <a href="/#about" class="nav-link">ABOUT</a>
-          <a href="https://blog.canonical.cc" class="nav-link">BLOG</a>
-          <a href="/#thesis" class="nav-link">THESIS</a>
-          <a href="/portfolio" class="nav-link">PORTFOLIO</a>
-          <a href="/labs/" class="nav-link">LABS</a>
-          <a href="/#team" class="nav-link">TEAM</a>
-        </nav>
-      </div>
-    </header>
+    </div>
+    <nav id="nav-mobile" class="nav-mobile md:hidden">
+        <a href="/#about" class="nav-mobile-link" data-canonical-anchor="about">ABOUT</a>
+        <a href="https://blog.canonical.cc" class="nav-mobile-link">BLOG</a>
+        <a href="/#thesis" class="nav-mobile-link" data-canonical-anchor="thesis">THESIS</a>
+        <a href="/portfolio" class="nav-mobile-link">PORTFOLIO</a>
+        <a href="/labs/" class="nav-mobile-link">LABS</a>
+        <a href="/labs/dilutionlab/" class="nav-mobile-sublink">Dilution Lab</a>
+        <a href="/labs/fundmodeler/" class="nav-mobile-sublink">Fund Modeler</a>
+        <a href="/labs/power-law/" class="nav-mobile-sublink">Power Law Lab</a>
+        <a href="/physical-ai-robotics/" class="nav-mobile-sublink">Physical AI &amp; Robotics</a>
+        <a href="/labs/semiconductor-silicon-stack/" class="nav-mobile-sublink">Semiconductor Stack</a>
+        <a href="/labs/decentralized-ai/" class="nav-mobile-sublink">Decentralized AI</a>
+        <a href="/labs/data-centers/" class="nav-mobile-sublink">Data Centers & Neoclouds</a>
+        <a href="/labs/lookalike/" class="nav-mobile-sublink">Lookalike Finder</a>
+        <a href="/labs/capital-call-planner/" class="nav-mobile-sublink">Capital Call Planner</a>
+        <a href="/#team" class="nav-mobile-link" data-canonical-anchor="team">TEAM</a>
+    </nav>
+</header>
+<script>
+(function () {
+    if (window.__canonicalHeaderBound) return;
+    window.__canonicalHeaderBound = true;
+
+    function onScroll() {
+        var h = document.getElementById('header');
+        if (!h) return;
+        if (window.scrollY > 50) h.classList.add('scrolled');
+        else h.classList.remove('scrolled');
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    document.addEventListener('click', function (e) {
+        var a = e.target.closest('a[data-canonical-anchor]');
+        if (!a) return;
+        var onHome = (window.location.hostname === 'canonical.cc' || window.location.hostname === 'www.canonical.cc' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                     && (window.location.pathname === '/' || window.location.pathname === '/index.html');
+        if (!onHome) return;
+        var sectionId = a.getAttribute('data-canonical-anchor');
+        var el = document.getElementById(sectionId);
+        if (!el) return;
+        e.preventDefault();
+        var top = el.getBoundingClientRect().top + window.pageYOffset - 80;
+        window.scrollTo({ top: top, behavior: 'smooth' });
+        history.replaceState(null, '', '#' + sectionId);
+    });
+
+    var toggle = document.querySelector('.nav-menu-toggle');
+    var mobileNav = document.getElementById('nav-mobile');
+    if (toggle && mobileNav) {
+        toggle.addEventListener('click', function () {
+            var open = mobileNav.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        mobileNav.addEventListener('click', function (e) {
+            if (e.target.tagName === 'A') {
+                mobileNav.classList.remove('open');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+})();
+</script>
 
     <header class="hero">
       <span class="lab-eyebrow">CANONICAL LABS · AEO READINESS</span>
@@ -217,33 +284,28 @@
       </div>
     </section>
 
-    <!-- Shared canonical.cc footer (verbatim markup + global stylesheet classes). -->
+    <!-- Shared canonical.cc footer — mirror of _includes/footer.html. -->
     <footer class="footer">
-      <div class="container mx-auto px-8">
+    <div class="container mx-auto px-8">
         <div class="flex flex-col md:flex-row justify-between items-center">
-          <p class="footer-text">&copy; 2025 Canonical. All rights reserved.</p>
-          <div class="flex items-center space-x-6 mt-4 md:mt-0">
-            <a href="https://x.com/canonicalcc" target="_blank" rel="noopener noreferrer" class="footer-link">Canonical on X</a>
-            <a href="https://blog.canonical.cc" target="_blank" rel="noopener noreferrer" class="footer-link">Canonical on Substack</a>
-          </div>
+            <p class="footer-text">
+                &copy; 2025 Canonical. All rights reserved.
+            </p>
+            <div class="flex items-center space-x-6 mt-4 md:mt-0">
+                <a href="/faqs" class="footer-link">
+                    FAQ
+                </a>
+                <a href="https://x.com/canonicalcc" target="_blank" rel="noopener noreferrer" class="footer-link">
+                    Canonical on X
+                </a>
+                <a href="https://blog.canonical.cc" target="_blank" rel="noopener noreferrer" class="footer-link">
+                    Canonical on Substack
+                </a>
+            </div>
         </div>
-      </div>
-    </footer>
+    </div>
+</footer>
 
-    <script>
-      // Minimal mobile-nav toggle (the shared site script is home-page-specific).
-      (function () {
-        var t = document.getElementById("navToggle"),
-          m = document.getElementById("nav-mobile");
-        if (!t || !m) return;
-        t.addEventListener("click", function () {
-          var open = m.hasAttribute("hidden");
-          if (open) m.removeAttribute("hidden");
-          else m.setAttribute("hidden", "");
-          t.setAttribute("aria-expanded", String(open));
-        });
-      })();
-    </script>
     <script src="/js/lab-share.js?v=20260525a"></script>
     <script src="app.js?v=20260810a"></script>
   </body>
