@@ -1,9 +1,10 @@
 /* Canonical Labs — AEO Readiness Check (Cloudflare Worker).
  *
  * Endpoints
- *   POST /aeo          → SSE stream of the pipeline
- *   GET  /aeo/:domain  → cached report JSON (free, no quota)
- *   POST /feedback     → thumbs / free-text, relayed to Slack
+ *   POST /aeo                  → SSE stream of the pipeline
+ *   GET  /aeo/:domain          → cached report JSON (free, no quota)
+ *   GET  /aeo/:domain/plan.md  → the report as a downloadable Markdown fix plan
+ *   POST /feedback             → thumbs / free-text, relayed to Slack
  *
  * Transport and conventions mirror canonical-lookalike so the two labs behave
  * identically from the browser's point of view.
@@ -17,6 +18,7 @@ import { attachArtifacts } from "./fixes.js";
 import { generateQueries } from "./queries.js";
 import { runEngines, alsoCited, ENGINES, activeEngines } from "./engines.js";
 import { scoreVisibility } from "./visibility.js";
+import { renderPlan, planFilename } from "./plan.js";
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days (PRD §9)
 
@@ -210,6 +212,54 @@ async function notifySlack(env, payload) {
   }
 }
 
+/**
+ * Post a fix-plan download to #hack-central.
+ *
+ * A scan is curiosity; a download is intent — somebody is about to hand this
+ * report to an agent and change their site. Worth knowing about separately.
+ *
+ * Deduped per domain+IP for 10 minutes through the existing RL namespace: a
+ * browser prefetch, a retry or a link scanner would otherwise post twice for
+ * one human action, and a channel that cries wolf stops being read.
+ */
+async function notifyDownload(env, request, domain, entry) {
+  const hook = env.SEARCH_WEBHOOK || env.FEEDBACK_WEBHOOK;
+  if (!hook) return;
+
+  const ip = request.headers.get("CF-Connecting-IP") || "anon";
+  if (env.RL) {
+    const key = `aeo:dl:${domain}:${ip}`;
+    if (await env.RL.get(key)) return;
+    await env.RL.put(key, "1", { expirationTtl: 600 });
+  }
+
+  const grade = entry.report ? `${entry.report.score}/100 · ${entry.report.band}` : "—";
+  const bits = [
+    `*<https://canonical.cc/labs/aeo/?d=${encodeURIComponent(domain)}|${domain}>* — ${grade}`,
+    `${(entry.fixes || []).length} tasks`,
+  ];
+  const country = request.headers.get("CF-IPCountry");
+  if (country && country !== "XX") bits.push(country);
+  const referer = request.headers.get("Referer");
+  if (referer) bits.push(`via ${referer.slice(0, 120)}`);
+
+  try {
+    const res = await fetch(hook, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: `:inbox_tray: *AEO fix plan downloaded*\n${bits.join(" · ")}` }),
+    });
+    if (res.ok) {
+      console.log(`slack: download ${domain}`);
+    } else {
+      console.error(`slack webhook rejected: ${res.status} ${(await res.text()).slice(0, 120)}`);
+    }
+  } catch (err) {
+    // Never fatal — the user gets their file whether or not Slack is up.
+    console.error("slack download webhook failed:", String(err?.message || err));
+  }
+}
+
 /* ── the pipeline ───────────────────────────────────────────────────────── */
 
 // Reordered: the business classification now comes before the audit, because
@@ -385,7 +435,11 @@ async function runPipeline(send, input, env, quota) {
   await send({ type: "fixes", fixes });
   await recordStage("fixes", "done");
 
-  await send({ type: "done" });
+  // NOTE: `done` is deliberately NOT sent here. The router emits it only after
+  // the report is in the cache, because `done` is what reveals the "download
+  // the fix plan" button and that button reads straight out of the cache. Sent
+  // from here, a fast click raced the KV write and got a 404.
+  //
   // Rebuilt here rather than reused: the visibility pillar is appended after
   // the audit block, and a cached replay must include it.
   const fullDetail = pillars.map((p) => ({
@@ -413,6 +467,42 @@ export default {
     const cors = corsHeaders(request, env);
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+
+    // The fix plan, as a Markdown file. MUST be matched before the cached-report
+    // route below, which would otherwise read the domain as "example.com/plan.md".
+    if (request.method === "GET" && url.pathname.startsWith("/aeo/") && url.pathname.endsWith("/plan.md")) {
+      const domain = decodeURIComponent(
+        url.pathname.slice("/aeo/".length, -"/plan.md".length)
+      ).toLowerCase();
+      if (!domain) return json({ error: "No domain given." }, 400, cors);
+
+      const entry = env.CACHE ? await env.CACHE.get(cacheKey(domain), "json") : null;
+      if (!entry) {
+        return json({ error: `No report for ${domain} — run a scan first.` }, 404, cors);
+      }
+
+      // Awaited, not fired and forgotten: Cloudflare cancels pending promises
+      // when the invocation ends. Rendering first means a Slack outage can
+      // never cost the user their download.
+      const body = renderPlan(entry);
+      await notifyDownload(env, request, domain, entry);
+
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": "text/markdown; charset=utf-8",
+          "content-disposition": `attachment; filename="${planFilename(domain)}"`,
+          // The client downloads via fetch+blob (so a 404 doesn't navigate the
+          // tab away from the report), and needs to read the filename back out
+          // rather than re-deriving it and drifting from this one.
+          "access-control-expose-headers": "Content-Disposition",
+          // The plan is only as current as the last scan; never let an
+          // intermediary serve a stale one after a re-run.
+          "cache-control": "no-store",
+          ...cors,
+        },
+      });
+    }
 
     // Cached report — free, unlimited, and what a shared permalink hits.
     if (request.method === "GET" && url.pathname.startsWith("/aeo/")) {
@@ -498,19 +588,22 @@ export default {
 
       return sseStream(async (send) => {
         const result = await runPipeline(send, body.input, env, { ...quota, domainRemaining: domainQuota.remaining - 1 });
-        if (result) {
-          // MUST be awaited. Cloudflare cancels pending promises when the
-          // invocation ends, so a fire-and-forget fetch here never actually
-          // sent — it failed silently and looked fine in the logs. The stream
-          // has already emitted `done`, so this costs the user nothing.
-          await notifySlack(env, { ...result, cached: false });
-        }
+        // Cache first, THEN `done`: the client reveals the fix-plan download on
+        // `done`, and that download is served out of this cache entry.
         if (env.CACHE && result) {
           await env.CACHE.put(
             cacheKey(domain),
             JSON.stringify({ ...result, cachedAt: new Date().toISOString() }),
             { expirationTtl: CACHE_TTL_SECONDS }
           );
+        }
+        await send({ type: "done" });
+        if (result) {
+          // MUST be awaited. Cloudflare cancels pending promises when the
+          // invocation ends, so a fire-and-forget fetch here never actually
+          // sent — it failed silently and looked fine in the logs. The stream
+          // has already emitted `done`, so this costs the user nothing.
+          await notifySlack(env, { ...result, cached: false });
         }
       }, request, env);
     }

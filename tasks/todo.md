@@ -224,3 +224,38 @@ whenever the payload shape changes.
    existing `lookalike` Worker. Blocks deploy.
 2. **Name**: "AEO Readiness Check" is the working title.
 3. **12 queries/run** — the main cost dial (~$0.75–1.65 per fresh run).
+
+## Milestone 8 — the downloadable fix plan ✅
+
+Shipped 2026-08-10. The report is now available as one Markdown file the user
+hands to an LLM, and each download posts to `#hack-central`.
+
+- [x] `src/plan.js` — pure, synchronous renderer over the cached report entry.
+      Reformats what the pipeline measured; derives no new claim.
+- [x] `GET /aeo/:domain/plan.md` — matched *before* `GET /aeo/:domain`, which
+      would otherwise read the domain as `example.com/plan.md`. Returns
+      `text/markdown` + `Content-Disposition: attachment`, 404 when uncached.
+- [x] Written instructions for the nine fixes with no generated artifact
+      (`productSchema`, `faqSchema`, `meta`, `markdown`, `mcp`,
+      `questionHeadings`, `comparisonPage`, `pricingText`, `openerRewrite`).
+      These render as near-empty cards on the page; in the file they're the
+      most useful part, because the reading model *can* write the prose.
+- [x] The `render` failure is promoted to a "read this first" blocker — it has
+      no `fix` key so it never reaches `rankFixes`, and it caps everything else.
+- [x] Verification checklist derived from the tasks actually issued, not fixed.
+- [x] `notifyDownload` → Slack, awaited (Cloudflare cancels pending promises),
+      deduped per domain+IP for 10 min through `RL`.
+- [x] Cache write moved *before* the `done` event. The client reveals the
+      download button on `done`, so the old ordering let a fast click race the
+      KV write and 404.
+- [x] Frontend: `#plan-card` between the score and the engine grid. Real `href`
+      for right-click, but the click is fetch+blob so a miss is a notice rather
+      than a cross-origin JSON error page replacing the report.
+- [x] 91 tests green (was 84 before this milestone, 78 before its endpoint tests)
+- [x] Synced `site/` → `anandiyer.github.io/labs/aeo/`, cache-buster `20260810a`
+
+### Known stale, not touched here
+
+Milestones 2–7 above are marked incomplete but actually shipped, and the README
+still says "Not yet deployed". The build log has drifted from the deployed
+reality; worth a pass, out of scope for this change.

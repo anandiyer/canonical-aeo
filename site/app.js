@@ -43,6 +43,7 @@ let running = false;
 let inflight = null;
 let lastInput = "";
 let lastQueries = null;
+let planUrl = null;
 
 /* ── stepper ──────────────────────────────────────────────────────────── */
 
@@ -369,6 +370,57 @@ function explain(f) {
   }
 }
 
+/* ── the downloadable fix plan ────────────────────────────────────────── */
+
+/**
+ * Fetched and saved as a blob rather than followed as a plain link.
+ *
+ * The file lives on the API origin, so a miss would navigate this tab to a
+ * cross-origin JSON error page and take the user's report with it. The href is
+ * still a real URL — right-click, copy link and no-JS all keep working — but
+ * the click is handled here so a failure is a notice, not a lost page.
+ */
+async function downloadPlan(ev) {
+  if (!planUrl) return;
+  ev.preventDefault();
+
+  const btn = $("plan-dl");
+  const label = btn.textContent;
+  btn.classList.add("loading");
+  btn.textContent = "Preparing…";
+
+  try {
+    const res = await fetch(planUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // Filename comes from the server's Content-Disposition so the two don't
+    // drift; the fallback only matters if the header is ever dropped.
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = match ? match[1] : "aeo-fix-plan.md";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
+
+    btn.textContent = "Downloaded ✓";
+    setTimeout(() => (btn.textContent = label), 2000);
+  } catch (err) {
+    btn.textContent = label;
+    showNotice(
+      `<b>Couldn't build the fix plan:</b> ${esc(err.message)}. Re-run the scan and try again.`,
+      true
+    );
+  } finally {
+    btn.classList.remove("loading");
+  }
+}
+
 /* ── warnings + notices ───────────────────────────────────────────────── */
 
 /** Non-fatal notes from the pipeline (budget caps, partial stages). */
@@ -417,6 +469,10 @@ function handleEvent(ev) {
       $("hint").textContent = "Showing a cached report — re-runs are free for 7 days.";
       break;
     case "site":
+      // Built here, revealed on `done` — the worker only writes the cache the
+      // plan is served from once the run has finished.
+      planUrl = `${ENDPOINT}/aeo/${encodeURIComponent(ev.site.hostname)}/plan.md`;
+      $("plan-dl").href = planUrl;
       $("site-name").textContent = ev.site.hostname;
       $("site-sub").textContent =
         `${ev.site.pagesCrawled} page${ev.site.pagesCrawled === 1 ? "" : "s"} crawled · ` +
@@ -461,6 +517,7 @@ function handleEvent(ev) {
     case "done":
       $("spinner").style.display = "none";
       $("status").textContent = "";
+      if (planUrl) $("plan-card").classList.remove("is-hidden");
       break;
     case "error":
       $("spinner").style.display = "none";
@@ -491,7 +548,8 @@ async function run(input, opts = {}) {
   $("not-measured").classList.add("is-hidden");
   $("audit-warning-msg").innerHTML = "";
   lastQueries = null;
-  for (const id of ["engines-label", "disclosure", "queries-label", "queries-card", "also-cited"]) {
+  planUrl = null;
+  for (const id of ["engines-label", "disclosure", "queries-label", "queries-card", "also-cited", "plan-card"]) {
     $(id).classList.add("is-hidden");
   }
   $("engines").innerHTML = "";
@@ -569,6 +627,7 @@ $("input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") run($("input").value);
 });
 $("rescan").addEventListener("click", () => run(lastInput, { refresh: true }));
+$("plan-dl").addEventListener("click", downloadPlan);
 
 // Shareable permalink: /labs/aeo/?d=example.com runs (or replays) that domain.
 const preset = new URLSearchParams(location.search).get("d");

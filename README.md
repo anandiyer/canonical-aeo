@@ -112,6 +112,27 @@ worker/   → Cloudflare Worker
   src/crawl.js    fetches pages the way a crawler does — no JS execution
   src/audit.js    Pillars A, B, D — deterministic
   src/score.js    weights, grade bands, fix ranking
+  src/fixes.js    deterministic fix artifacts (never invents a fact)
+  src/plan.js     the whole report as one downloadable Markdown brief
   src/worker.js   router, CORS, SSE, quota, cache
   scan.mjs        local CLI harness
 ```
+
+## Endpoints
+
+| Route | Purpose |
+|---|---|
+| `POST /aeo` | SSE stream of the pipeline |
+| `GET /aeo/:domain` | cached report JSON — free, no quota |
+| `GET /aeo/:domain/plan.md` | the report as a downloadable Markdown fix plan |
+| `POST /feedback` | thumbs / free text, relayed to Slack |
+
+`plan.md` renders the cached report as a brief you hand to an LLM: the ground
+rules, the score, every fix with its evidence and generated artifact, and
+written instructions for the fixes we deliberately don't auto-generate. It is
+served straight out of `CACHE`, which is why the pipeline writes the cache
+*before* it emits `done` — the client reveals the download button on `done`,
+and a fast click used to race the KV write.
+
+Each download posts to `#hack-central`, deduped per domain+IP for 10 minutes so
+a prefetch or a link scanner doesn't read as a second human.

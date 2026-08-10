@@ -926,3 +926,47 @@ a:hover { color: #ffffff; }
 /* Named by some engines but fewer than half — real, but not a win. */
 .chip.partial { border-color: #fcd34d; background: #fffbeb; }
 .chip.partial i { color: var(--card-accent-deep); }
+
+/* ── the downloadable fix plan ───────────────────────────────────────── */
+/* Sits between the score and the engine grid: the moment the user learns
+   they have work to do is the moment to offer to do it for them. */
+.plan-card {
+  margin-top: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.plan-copy { flex: 1 1 20rem; min-width: 0; }
+.plan-card .label { margin-top: 0; }
+.plan-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--card-ink);
+}
+.plan-sub {
+  margin: 0;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: var(--card-soft-ink);
+  max-width: 44ch;
+}
+/* The one dark button on a white card — .btn's white-on-blue inverts to
+   nothing here, so it takes the accent fill instead. */
+.plan-btn {
+  flex: 0 0 auto;
+  background: var(--card-ink);
+  color: #fff;
+  text-decoration: none;
+  padding: 0.9rem 1.5rem;
+  font-size: 0.95rem;
+}
+.plan-btn:hover { background: var(--accent); }
+.plan-btn.loading { opacity: 0.7; cursor: progress; transform: none; }
+
+@media (max-width: 640px) {
+  .plan-card { gap: 1.1rem; }
+  .plan-btn { width: 100%; }
+}

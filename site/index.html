@@ -36,7 +36,7 @@
     <link rel="stylesheet" href="/css/style.css?v=20260525a" />
     <link rel="stylesheet" href="/css/lab-share.css?v=20260525a" />
     <!-- Lab-specific styles load after, so they win on any overlap. -->
-    <link rel="stylesheet" href="style.css?v=20260808b" />
+    <link rel="stylesheet" href="style.css?v=20260810a" />
   </head>
   <body>
     <!-- Shared canonical.cc header (verbatim markup + global stylesheet classes). -->
@@ -156,6 +156,20 @@
         </div>
       </div>
 
+      <!-- the whole report as one file you can hand to an LLM -->
+      <div class="card plan-card is-hidden" id="plan-card">
+        <div class="plan-copy">
+          <p class="label">Don't do this by hand</p>
+          <h3 class="plan-title">Download the fix plan</h3>
+          <p class="plan-sub">
+            One Markdown file with every fix below — the evidence, the code, and
+            the instructions. Drop it into Claude Code, Cursor or ChatGPT and let
+            it make the changes.
+          </p>
+        </div>
+        <a class="btn plan-btn" id="plan-dl" href="#" download>Download .md</a>
+      </div>
+
       <!-- engine grid -->
       <p class="section-label is-hidden" id="engines-label">What each engine says about you</p>
       <div class="engines" id="engines"></div>
@@ -231,6 +245,6 @@
       })();
     </script>
     <script src="/js/lab-share.js?v=20260525a"></script>
-    <script src="app.js?v=20260808b"></script>
+    <script src="app.js?v=20260810a"></script>
   </body>
 </html>
